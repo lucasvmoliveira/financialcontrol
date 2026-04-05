@@ -395,6 +395,34 @@
     }
   }
 
+
+  async function exportAllToMonday() {
+    const statusEl = document.getElementById("mondaySyncStatus");
+    const token = getMondayToken();
+    if (!token) {
+      if (statusEl) statusEl.textContent = "Salve o token primeiro.";
+      return;
+    }
+    const toExport = state.transactions.filter(t => !t.mondayId);
+    if (!toExport.length) {
+      if (statusEl) statusEl.textContent = "Todos os lançamentos já estão no Monday.";
+      return;
+    }
+    if (statusEl) statusEl.textContent = "Exportando " + toExport.length + " lançamentos…";
+    let ok = 0;
+    let fail = 0;
+    for (const t of toExport) {
+      try {
+        await pushTransactionToMonday(t);
+        ok++;
+        if (statusEl) statusEl.textContent = "Exportando… " + ok + "/" + toExport.length;
+      } catch (e) {
+        fail++;
+      }
+    }
+    saveState();
+    if (statusEl) statusEl.textContent = "Exportado! " + ok + " enviados" + (fail ? ", " + fail + " erros" : "") + ".";
+  }
   async function pushTransactionToMonday(t) {
     const token = getMondayToken();
     if (!token) return;
@@ -1108,6 +1136,7 @@
       if (st) st.textContent = "Token salvo!";
     });
     onClick("btnSyncMonday", () => syncFromMonday());
+    onClick("btnExportAllMonday", () => exportAllToMonday());
     onClick("btnSaveInsightsConfig", () => {
       const k = document.getElementById("insightsApiKey")?.value.trim() || "";
       localStorage.setItem("fluxo_anthropic_key", k);

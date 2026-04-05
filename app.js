@@ -399,19 +399,21 @@
   async function pushTransactionToMonday(t) {
     const token = getMondayToken();
     if (!token) return;
+    const groupId = t.status === "realized" ? "group_mm24q7bz" : "topics";
     const colValues = JSON.stringify({
-      [MONDAY_COLS.date]:     JSON.stringify({ date: t.month + "-01" }),
-      [MONDAY_COLS.value]:    String(t.amount),
-      [MONDAY_COLS.notes]:    t.description,
-      [MONDAY_COLS.kind]:     JSON.stringify({ index: t.kind === "income" ? 1 : 2 }),
-      [MONDAY_COLS.status]:   JSON.stringify({ index: t.status === "realized" ? 2 : 1 }),
+      [MONDAY_COLS.date]:   { date: t.month + "-01" },
+      [MONDAY_COLS.value]:  t.amount,
+      [MONDAY_COLS.notes]:  t.description,
+      [MONDAY_COLS.kind]:   { index: t.kind === "income" ? 1 : 2 },
+      [MONDAY_COLS.status]: { index: t.status === "realized" ? 2 : 1 },
     });
-    const mutation = `mutation($board: ID!, $name: String!, $cols: JSON!) {
-      create_item(board_id: $board, item_name: $name, column_values: $cols) { id }
+    const mutation = `mutation($board: ID!, $group: String!, $name: String!, $cols: JSON!) {
+      create_item(board_id: $board, group_id: $group, item_name: $name, column_values: $cols) { id }
     }`;
     try {
       const data = await mondayRequest(mutation, {
         board: MONDAY_BOARD_ID,
+        group: groupId,
         name: t.description,
         cols: colValues,
       });

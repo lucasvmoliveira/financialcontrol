@@ -434,25 +434,31 @@
       [MONDAY_COLS.kind]:   { index: t.kind === "income" ? 1 : 2 },
       [MONDAY_COLS.status]: { index: t.status === "realized" ? 2 : 1 },
     });
-    const escapedName = t.description.replace(/"/g, '\\"');
-    const escapedCols = colValues.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-    const mutation = `mutation {
-      create_item(
-        board_id: ${MONDAY_BOARD_ID},
-        group_id: "${groupId}",
-        item_name: "${escapedName}",
-        column_values: "${escapedCols}"
-      ) { id }
-    }`;
-    try {
-      const data = await mondayRequest(mutation);
-      const newId = data.data.create_item.id;
-      t.mondayId = newId;
-      t.id = "monday_" + newId;
-      saveState();
-    } catch (e) {
-      console.warn("Erro ao enviar para Monday:", e.message);
-    }
+    const r = await fetch("https://api.monday.com/v2", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": token,
+        "API-Version": "2024-01",
+      },
+      body: JSON.stringify({
+        query: `mutation($board: ID!, $group: String!, $name: String!, $cols: JSON!) {
+          create_item(board_id: $board, group_id: $group, item_name: $name, column_values: $cols) { id }
+        }`,
+        variables: {
+          board: MONDAY_BOARD_ID,
+          group: groupId,
+          name: t.description,
+          cols: colValues,
+        }
+      }),
+    });
+    const data = await r.json();
+    if (data.errors) throw new Error(data.errors[0]?.message || "Erro Monday");
+    const newId = data.data.create_item.id;
+    t.mondayId = newId;
+    t.id = "monday_" + newId;
+    saveState();
   }
   // ──────────────────────────────────────────────────────────────────────────
 

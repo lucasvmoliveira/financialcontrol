@@ -286,21 +286,39 @@
 
     <div class="modal-overlay" id="modalInsights" role="dialog" aria-modal="true" aria-labelledby="modalInsightsTitle">
       <div class="modal modal-wide">
-        <h3 id="modalInsightsTitle">Insights com IA</h3>
+        <h3 id="modalInsightsTitle">Monday + Insights com IA</h3>
+
         <p class="kpi-hint" style="margin-top: -0.5rem">
-          Cole sua chave da
-          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="color: var(--accent)">API Anthropic</a>
-          (começa com <code style="font-size: 0.8rem">sk-ant-</code>). A chave fica salva só neste navegador.
+          Conecte ao Monday para sincronizar lançamentos e gere insights com a API Anthropic.
         </p>
-        <div class="toolbar-group" style="margin-top: 1rem">
-          <label for="insightsApiKey">Chave da API Anthropic</label>
-          <input type="password" id="insightsApiKey" placeholder="sk-ant-..." autocomplete="off" />
+
+        <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin-top: 1rem;">
+          <p style="margin: 0 0 0.75rem; font-size: 0.85rem; font-weight: 600;">Monday.com</p>
+          <div class="toolbar-group">
+            <label for="mondayTokenInput">Token da API Monday</label>
+            <input type="password" id="mondayTokenInput" placeholder="eyJhbGci…" autocomplete="off" />
+          </div>
+          <div class="modal-actions" style="justify-content: flex-start; margin-top: 0.75rem;">
+            <button type="button" class="btn btn-ghost" id="btnSaveMondayToken">Salvar token</button>
+            <button type="button" class="btn btn-primary" id="btnSyncMonday">Sincronizar agora</button>
+          </div>
+          <p class="kpi-hint" id="mondaySyncStatus" style="margin-top: 0.5rem; min-height: 1.25rem"></p>
         </div>
-        <div class="modal-actions" style="justify-content: flex-start; margin-top: 0.75rem">
-          <button type="button" class="btn btn-primary" id="btnGenerateInsights">Gerar insights agora</button>
+
+        <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin-top: 1rem;">
+          <p style="margin: 0 0 0.75rem; font-size: 0.85rem; font-weight: 600;">Insights com IA (Anthropic)</p>
+          <div class="toolbar-group">
+            <label for="insightsApiKey">Chave da API Anthropic</label>
+            <input type="password" id="insightsApiKey" placeholder="sk-ant-…" autocomplete="off" />
+          </div>
+          <div class="modal-actions" style="justify-content: flex-start; margin-top: 0.75rem;">
+            <button type="button" class="btn btn-ghost" id="btnSaveInsightsConfig">Salvar chave</button>
+            <button type="button" class="btn btn-primary" id="btnGenerateInsights">Gerar insights agora</button>
+          </div>
+          <p class="kpi-hint" id="insightsStatus" style="margin-top: 0.5rem; min-height: 1.25rem"></p>
+          <pre class="insights-output" id="insightsOutput" hidden></pre>
         </div>
-        <p class="kpi-hint" id="insightsStatus" style="margin-top: 0.75rem; min-height: 1.25rem"></p>
-        <pre class="insights-output" id="insightsOutput" hidden></pre>
+
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" id="btnCloseInsights">Fechar</button>
         </div>

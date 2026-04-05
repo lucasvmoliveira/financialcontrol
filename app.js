@@ -313,43 +313,148 @@
     return lines.join("\n");
   }
 
-  function openInsightsModal() {
-    const keyEl = document.getElementById("insightsApiKey");
-    const st = document.getElementById("insightsStatus");
-    const out = document.getElementById("insightsOutput");
-    if (keyEl) keyEl.value = localStorage.getItem("fluxo_anthropic_key") || "";
-    if (st) st.textContent = "";
-    if (out) {
-      out.textContent = "";
-      out.hidden = true;
+  // ─── Monday.com integration ───────────────────────────────────────────────
+  const MONDAY_BOARD_ID = "18407293573";
+  const MONDAY_COLS = {
+    date:       "date_mm24p4t0",
+    value:      "numeric_mm245wmn",
+    category:   "dropdown_mm245cyj",
+    notes:      "text_mm24e62a",
+    kind:       "color_mm24kjzr",   // status: index 1=Receita, 2=Despesa
+    status:     "color_mm24ay2x",   // status: index 1=Previsto, 2=Realizado
+  };
+
+  function getMondayToken() {
+    return localStorage.getItem("fluxo_monday_token") || "";
+  }
+
+  async function mondayRequest(query, variables) {
+    const token = getMondayToken();
+    if (!token) throw new Error("Token Monday não configurado.");
+    const r = await fetch("https://api.monday.com/v2", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": token,
+        "API-Version": "2024-01",
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+    const data = await r.json();
+    if (data.errors) throw new Error(data.errors[0]?.message || "Erro Monday API");
+    return data;
+  }
+
+  async function syncFromMonday() {
+    const statusEl = document.getElementById("mondaySyncStatus");
+    if (statusEl) statusEl.textContent = "Sincronizando com Monday…";
+    try {
+      const q = `query($board: ID!) {
+        boards(ids: [$board]) {
+          items_page(limit: 500) {
+            items {
+              id name
+              column_values {
+                id value text type
+              }
+            }
+          }
+        }
+      }`;
+      const data = await mondayRequest(q, { board: MONDAY_BOARD_ID });
+      const items = data.data.boards[0].items_page.items;
+      const transactions = items.map((item) => {
+        const col = (id) => item.column_values.find((c) => c.id === id);
+        const dateText  = col(MONDAY_COLS.date)?.text || monthFromDate() + "-01";
+        const month     = dateText.substring(0, 7);
+        const amount    = Math.abs(parseFloat(col(MONDAY_COLS.value)?.text || "0"));
+        const kindText  = col(MONDAY_COLS.kind)?.text || "Despesa";
+        const statusTxt = col(MONDAY_COLS.status)?.text || "Previsto";
+        const category  = col(MONDAY_COLS.category)?.text || "Outros";
+        const catId     = state.categories.find(c => c.label.toLowerCase() === category.toLowerCase())?.id || "outros";
+        return {
+          id: "monday_" + item.id,
+          mondayId: item.id,
+          description: item.name,
+          amount,
+          kind: kindText === "Receita" ? "income" : "expense",
+          categoryId: catId,
+          month,
+          status: statusTxt === "Realizado" ? "realized" : "planned",
+          recurrence: "none",
+          createdAt: new Date().toISOString(),
+        };
+      });
+      // Mescla: mantém lançamentos locais que não vieram do Monday
+      const localOnly = state.transactions.filter(t => !t.mondayId);
+      state.transactions = [...transactions, ...localOnly];
+      saveState();
+      fullRender();
+      if (statusEl) statusEl.textContent = "Sincronizado! " + transactions.length + " lançamentos carregados.";
+    } catch (e) {
+      if (statusEl) statusEl.textContent = "Erro: " + e.message;
     }
+  }
+
+  async function pushTransactionToMonday(t) {
+    const token = getMondayToken();
+    if (!token) return;
+    const colValues = JSON.stringify({
+      [MONDAY_COLS.date]:     JSON.stringify({ date: t.month + "-01" }),
+      [MONDAY_COLS.value]:    String(t.amount),
+      [MONDAY_COLS.notes]:    t.description,
+      [MONDAY_COLS.kind]:     JSON.stringify({ index: t.kind === "income" ? 1 : 2 }),
+      [MONDAY_COLS.status]:   JSON.stringify({ index: t.status === "realized" ? 2 : 1 }),
+    });
+    const mutation = `mutation($board: ID!, $name: String!, $cols: JSON!) {
+      create_item(board_id: $board, item_name: $name, column_values: $cols) { id }
+    }`;
+    try {
+      const data = await mondayRequest(mutation, {
+        board: MONDAY_BOARD_ID,
+        name: t.description,
+        cols: colValues,
+      });
+      const newId = data.data.create_item.id;
+      t.mondayId = newId;
+      t.id = "monday_" + newId;
+      saveState();
+    } catch (e) {
+      console.warn("Erro ao enviar para Monday:", e.message);
+    }
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
+  function openInsightsModal() {
+    const keyEl  = document.getElementById("insightsApiKey");
+    const tokEl  = document.getElementById("mondayTokenInput");
+    const st     = document.getElementById("insightsStatus");
+    const out    = document.getElementById("insightsOutput");
+    if (keyEl) keyEl.value = localStorage.getItem("fluxo_anthropic_key") || "";
+    if (tokEl) tokEl.value = localStorage.getItem("fluxo_monday_token") || "";
+    if (st) st.textContent = "";
+    if (out) { out.textContent = ""; out.hidden = true; }
     document.getElementById("modalInsights")?.classList.add("open");
   }
 
   async function generateInsights() {
-    const keyEl = document.getElementById("insightsApiKey");
-    const apiKey = keyEl?.value.trim() || "";
+    const keyEl   = document.getElementById("insightsApiKey");
+    const apiKey  = keyEl?.value.trim() || "";
     const statusEl = document.getElementById("insightsStatus");
-    const out = document.getElementById("insightsOutput");
-    const btn = document.getElementById("btnGenerateInsights");
+    const out     = document.getElementById("insightsOutput");
+    const btn     = document.getElementById("btnGenerateInsights");
 
     if (!apiKey) {
-      if (statusEl) statusEl.textContent = "Informe sua chave da API Anthropic (começa com sk-ant-).";
+      if (statusEl) statusEl.textContent = "Informe sua chave da API Anthropic (sk-ant-…).";
       return;
     }
-
     localStorage.setItem("fluxo_anthropic_key", apiKey);
-
-    if (statusEl) statusEl.textContent = "Gerando… pode levar alguns segundos.";
-    if (out) {
-      out.hidden = true;
-      out.textContent = "";
-    }
+    if (statusEl) statusEl.textContent = "Gerando insights… aguarde.";
+    if (out) { out.hidden = true; out.textContent = ""; }
     if (btn) btn.disabled = true;
 
     try {
       const summary = buildFinancialSummaryForAi();
-
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -361,11 +466,10 @@
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 2000,
-          system: "Você é um planejador financeiro pessoal objetivo. Responda em português do Brasil. Use markdown (títulos, listas) quando ajudar a leitura. Regras: não invente números que não apareçam no contexto; se faltar dado, diga o que falta. Inclua: (1) visão geral do padrão de caixa, (2) riscos ou alertas, (3) até 7 sugestões práticas e priorizadas para o próximo mês.",
+          system: "Você é um planejador financeiro pessoal objetivo. Responda em português do Brasil. Use markdown (títulos, listas) quando ajudar a leitura. Não invente números. Inclua: (1) visão geral do caixa, (2) riscos ou alertas, (3) até 7 sugestões práticas para o próximo mês.",
           messages: [{ role: "user", content: summary }],
         }),
       });
-
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
         if (statusEl) statusEl.textContent = data.error?.message || "Erro HTTP " + r.status;
@@ -376,13 +480,9 @@
         out.textContent = text;
         out.hidden = false;
         if (statusEl) statusEl.textContent = "Pronto.";
-      } else if (statusEl) {
-        statusEl.textContent = "Resposta sem texto.";
       }
     } catch (e) {
-      if (statusEl) {
-        statusEl.textContent = "Erro: " + (e && e.message ? e.message : "verifique sua chave e conexão.");
-      }
+      if (statusEl) statusEl.textContent = "Erro: " + (e?.message || "verifique sua chave.");
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -953,6 +1053,7 @@
       saveState();
       el.monthFilter.value = t.month;
       fullRender();
+      pushTransactionToMonday(t);
     });
 
     el.kind.addEventListener("change", refreshCategoryOptions);
@@ -997,17 +1098,20 @@
     document.getElementById("modalInsights")?.addEventListener("click", (e) => {
       if (e.target === e.currentTarget) e.currentTarget.classList.remove("open");
     });
+    onClick("btnSaveMondayToken", () => {
+      const tok = document.getElementById("mondayTokenInput")?.value.trim() || "";
+      localStorage.setItem("fluxo_monday_token", tok);
+      const st = document.getElementById("mondaySyncStatus");
+      if (st) st.textContent = "Token salvo!";
+    });
+    onClick("btnSyncMonday", () => syncFromMonday());
     onClick("btnSaveInsightsConfig", () => {
-      const u = document.getElementById("insightsUrl")?.value.trim() || "";
-      const s = document.getElementById("insightsSecret")?.value || "";
-      localStorage.setItem("fluxo_insights_url", u);
-      localStorage.setItem("fluxo_insights_secret", s);
+      const k = document.getElementById("insightsApiKey")?.value.trim() || "";
+      localStorage.setItem("fluxo_anthropic_key", k);
       const st = document.getElementById("insightsStatus");
-      if (st) st.textContent = "Configuração salva neste navegador.";
+      if (st) st.textContent = "Chave salva.";
     });
-    onClick("btnGenerateInsights", () => {
-      generateInsights();
-    });
+    onClick("btnGenerateInsights", () => generateInsights());
 
     document.getElementById("editKind")?.addEventListener("change", () => refreshEditCategorySelect());
     onClick("btnCancelEditTx", () => el.modalEditTx?.classList.remove("open"));

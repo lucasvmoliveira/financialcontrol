@@ -328,7 +328,7 @@
     return localStorage.getItem("fluxo_monday_token") || "";
   }
 
-  async function mondayRequest(query, variables) {
+  async function mondayRequest(query) {
     const token = getMondayToken();
     if (!token) throw new Error("Token Monday não configurado.");
     const r = await fetch("https://api.monday.com/v2", {
@@ -338,7 +338,7 @@
         "Authorization": token,
         "API-Version": "2024-01",
       },
-      body: JSON.stringify({ query, variables }),
+      body: JSON.stringify({ query }),
     });
     const data = await r.json();
     if (data.errors) throw new Error(data.errors[0]?.message || "Erro Monday API");
@@ -349,8 +349,8 @@
     const statusEl = document.getElementById("mondaySyncStatus");
     if (statusEl) statusEl.textContent = "Sincronizando com Monday…";
     try {
-      const q = `query($board: ID!) {
-        boards(ids: [$board]) {
+      const q = `query {
+        boards(ids: [${MONDAY_BOARD_ID}]) {
           items_page(limit: 500) {
             items {
               id name
@@ -361,7 +361,7 @@
           }
         }
       }`;
-      const data = await mondayRequest(q, { board: MONDAY_BOARD_ID });
+      const data = await mondayRequest(q);
       const items = data.data.boards[0].items_page.items;
       const transactions = items.map((item) => {
         const col = (id) => item.column_values.find((c) => c.id === id);
@@ -385,7 +385,6 @@
           createdAt: new Date().toISOString(),
         };
       });
-      // Mescla: mantém lançamentos locais que não vieram do Monday
       const localOnly = state.transactions.filter(t => !t.mondayId);
       state.transactions = [...transactions, ...localOnly];
       saveState();
@@ -407,16 +406,18 @@
       [MONDAY_COLS.kind]:   { index: t.kind === "income" ? 1 : 2 },
       [MONDAY_COLS.status]: { index: t.status === "realized" ? 2 : 1 },
     });
-    const mutation = `mutation($board: ID!, $group: String!, $name: String!, $cols: JSON!) {
-      create_item(board_id: $board, group_id: $group, item_name: $name, column_values: $cols) { id }
+    const escapedName = t.description.replace(/"/g, '\\"');
+    const escapedCols = colValues.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const mutation = `mutation {
+      create_item(
+        board_id: ${MONDAY_BOARD_ID},
+        group_id: "${groupId}",
+        item_name: "${escapedName}",
+        column_values: "${escapedCols}"
+      ) { id }
     }`;
     try {
-      const data = await mondayRequest(mutation, {
-        board: MONDAY_BOARD_ID,
-        group: groupId,
-        name: t.description,
-        cols: colValues,
-      });
+      const data = await mondayRequest(mutation);
       const newId = data.data.create_item.id;
       t.mondayId = newId;
       t.id = "monday_" + newId;

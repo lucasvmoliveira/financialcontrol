@@ -286,25 +286,17 @@
 
     <div class="modal-overlay" id="modalInsights" role="dialog" aria-modal="true" aria-labelledby="modalInsightsTitle">
       <div class="modal modal-wide">
-        <h3 id="modalInsightsTitle">Insights com IA (automático)</h3>
+        <h3 id="modalInsightsTitle">Insights com IA</h3>
         <p class="kpi-hint" style="margin-top: -0.5rem">
-          Gratuito: use uma
-          <a href="https://www.netlify.com/" target="_blank" rel="noopener" style="color: var(--accent)">Netlify</a>
-          (plano free) + chave
-          <a href="https://console.groq.com/keys" target="_blank" rel="noopener" style="color: var(--accent)">Groq</a>
-          (tier gratuito). A chave da IA fica só no servidor Netlify — não no GitHub público. Cole abaixo a URL da função
-          <code style="font-size: 0.8rem">/.netlify/functions/fluxo-insights</code> e clique em Gerar.
+          Cole sua chave da
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="color: var(--accent)">API Anthropic</a>
+          (começa com <code style="font-size: 0.8rem">sk-ant-</code>). A chave fica salva só neste navegador.
         </p>
         <div class="toolbar-group" style="margin-top: 1rem">
-          <label for="insightsUrl">URL da função Netlify</label>
-          <input type="url" id="insightsUrl" placeholder="https://seu-app.netlify.app/.netlify/functions/fluxo-insights" autocomplete="off" />
-        </div>
-        <div class="toolbar-group" style="margin-top: 0.75rem">
-          <label for="insightsSecret">Senha opcional (X-Fluxo-Secret, se configurou no Netlify)</label>
-          <input type="password" id="insightsSecret" placeholder="Deixe vazio se não usou FLUXO_INSIGHTS_SECRET" autocomplete="off" />
+          <label for="insightsApiKey">Chave da API Anthropic</label>
+          <input type="password" id="insightsApiKey" placeholder="sk-ant-..." autocomplete="off" />
         </div>
         <div class="modal-actions" style="justify-content: flex-start; margin-top: 0.75rem">
-          <button type="button" class="btn btn-ghost" id="btnSaveInsightsConfig">Salvar configuração</button>
           <button type="button" class="btn btn-primary" id="btnGenerateInsights">Gerar insights agora</button>
         </div>
         <p class="kpi-hint" id="insightsStatus" style="margin-top: 0.75rem; min-height: 1.25rem"></p>

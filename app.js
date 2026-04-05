@@ -314,12 +314,10 @@
   }
 
   function openInsightsModal() {
-    const urlEl = document.getElementById("insightsUrl");
-    const secEl = document.getElementById("insightsSecret");
+    const keyEl = document.getElementById("insightsApiKey");
     const st = document.getElementById("insightsStatus");
     const out = document.getElementById("insightsOutput");
-    if (urlEl) urlEl.value = localStorage.getItem("fluxo_insights_url") || "";
-    if (secEl) secEl.value = localStorage.getItem("fluxo_insights_secret") || "";
+    if (keyEl) keyEl.value = localStorage.getItem("fluxo_anthropic_key") || "";
     if (st) st.textContent = "";
     if (out) {
       out.textContent = "";
@@ -329,17 +327,18 @@
   }
 
   async function generateInsights() {
-    const urlEl = document.getElementById("insightsUrl");
-    const url = urlEl?.value.trim() || "";
-    const secret = document.getElementById("insightsSecret")?.value.trim() || "";
+    const keyEl = document.getElementById("insightsApiKey");
+    const apiKey = keyEl?.value.trim() || "";
     const statusEl = document.getElementById("insightsStatus");
     const out = document.getElementById("insightsOutput");
     const btn = document.getElementById("btnGenerateInsights");
 
-    if (!url) {
-      if (statusEl) statusEl.textContent = "Informe a URL da função Netlify (termina em /fluxo-insights).";
+    if (!apiKey) {
+      if (statusEl) statusEl.textContent = "Informe sua chave da API Anthropic (começa com sk-ant-).";
       return;
     }
+
+    localStorage.setItem("fluxo_anthropic_key", apiKey);
 
     if (statusEl) statusEl.textContent = "Gerando… pode levar alguns segundos.";
     if (out) {
@@ -350,32 +349,39 @@
 
     try {
       const summary = buildFinancialSummaryForAi();
-      const headers = { "Content-Type": "application/json" };
-      if (secret) headers["X-Fluxo-Secret"] = secret;
 
-      const r = await fetch(url, {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers,
-        body: JSON.stringify({ summary }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 2000,
+          system: "Você é um planejador financeiro pessoal objetivo. Responda em português do Brasil. Use markdown (títulos, listas) quando ajudar a leitura. Regras: não invente números que não apareçam no contexto; se faltar dado, diga o que falta. Inclua: (1) visão geral do padrão de caixa, (2) riscos ou alertas, (3) até 7 sugestões práticas e priorizadas para o próximo mês.",
+          messages: [{ role: "user", content: summary }],
+        }),
       });
 
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
-        if (statusEl) statusEl.textContent = data.error || "Erro HTTP " + r.status;
+        if (statusEl) statusEl.textContent = data.error?.message || "Erro HTTP " + r.status;
         return;
       }
-      if (data.text && out) {
-        out.textContent = data.text;
+      const text = data.content?.[0]?.text || "";
+      if (text && out) {
+        out.textContent = text;
         out.hidden = false;
         if (statusEl) statusEl.textContent = "Pronto.";
       } else if (statusEl) {
-        statusEl.textContent = data.error || "Resposta sem texto.";
+        statusEl.textContent = "Resposta sem texto.";
       }
     } catch (e) {
       if (statusEl) {
-        statusEl.textContent =
-          "Rede/CORS: use a URL exata da Netlify (HTTPS), ou abra o app pelo mesmo domínio. " +
-          (e && e.message ? e.message : "");
+        statusEl.textContent = "Erro: " + (e && e.message ? e.message : "verifique sua chave e conexão.");
       }
     } finally {
       if (btn) btn.disabled = false;

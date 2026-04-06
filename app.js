@@ -359,6 +359,8 @@
     "outros": 5,
     "cartao_de_credito": 3,
   };
+
+  function getMondayToken() {
     return localStorage.getItem("fluxo_monday_token") || "";
   }
 

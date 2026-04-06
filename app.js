@@ -460,6 +460,44 @@
     t.id = "monday_" + newId;
     saveState();
   }
+
+  async function deleteFromMonday(mondayId) {
+    const token = getMondayToken();
+    if (!token || !mondayId) return;
+    await fetch("https://api.monday.com/v2", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": token, "API-Version": "2024-01" },
+      body: JSON.stringify({
+        query: `mutation($id: ID!) { delete_item(item_id: $id) { id } }`,
+        variables: { id: mondayId }
+      }),
+    });
+  }
+
+  async function updateStatusOnMonday(mondayId, status) {
+    const token = getMondayToken();
+    if (!token || !mondayId) return;
+    const groupId = status === "realized" ? "group_mm24q7bz" : "topics";
+    const colValues = JSON.stringify({
+      [MONDAY_COLS.status]: { index: status === "realized" ? 2 : 1 },
+    });
+    await fetch("https://api.monday.com/v2", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": token, "API-Version": "2024-01" },
+      body: JSON.stringify({
+        query: `mutation($id: ID!, $cols: JSON!) { change_multiple_column_values(item_id: $id, board_id: ${MONDAY_BOARD_ID}, column_values: $cols) { id } }`,
+        variables: { id: mondayId, cols: colValues }
+      }),
+    });
+    await fetch("https://api.monday.com/v2", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": token, "API-Version": "2024-01" },
+      body: JSON.stringify({
+        query: `mutation($id: ID!, $group: String!) { move_item_to_group(item_id: $id, group_id: $group) { id } }`,
+        variables: { id: mondayId, group: groupId }
+      }),
+    });
+  }
   // ──────────────────────────────────────────────────────────────────────────
 
   function openInsightsModal() {
@@ -704,9 +742,12 @@
       tr.querySelector(".js-edit")?.addEventListener("click", () => openEditTxModal(id));
       tr.querySelector(".js-delete")?.addEventListener("click", () => {
         if (confirm("Excluir este lançamento?")) {
+          const t = state.transactions.find((x) => x.id === id);
+          const mondayId = t?.mondayId;
           state.transactions = state.transactions.filter((t) => t.id !== id);
           saveState();
           fullRender();
+          if (mondayId) deleteFromMonday(mondayId);
         }
       });
       tr.querySelector(".js-realize")?.addEventListener("click", () => {
@@ -715,6 +756,7 @@
           t.status = "realized";
           saveState();
           fullRender();
+          if (t.mondayId) updateStatusOnMonday(t.mondayId, "realized");
         }
       });
       tr.querySelector(".js-unrealize")?.addEventListener("click", () => {
@@ -723,6 +765,7 @@
           t.status = "planned";
           saveState();
           fullRender();
+          if (t.mondayId) updateStatusOnMonday(t.mondayId, "planned");
         }
       });
     });

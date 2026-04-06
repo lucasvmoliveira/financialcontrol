@@ -324,7 +324,41 @@
     status:     "color_mm24ay2x",   // status: index 1=Previsto, 2=Realizado
   };
 
-  function getMondayToken() {
+  const MONDAY_DROPDOWN_MAP = {
+    "1": "moradia",
+    "2": "salario",
+    "3": "cartao_de_credito",
+    "4": "servicos",
+    "5": "outros",
+    "6": "outros",
+  };
+  const MONDAY_DROPDOWN_REVERSE = {
+    "moradia": 1,
+    "salario": 1, // não existe, usa Moradia como fallback — será corrigido abaixo
+    "cartao_de_credito": 3,
+    "servicos": 4,
+    "outros": 5,
+    "freelance": 5,
+    "investimentos": 5,
+    "alimentacao": 5,
+    "transporte": 5,
+    "saude": 5,
+    "lazer": 5,
+  };
+  // Mapa correto receita->dropdown
+  const CAT_TO_DROPDOWN = {
+    "salario": 2,
+    "freelance": 5,
+    "investimentos": 5,
+    "moradia": 1,
+    "alimentacao": 5,
+    "transporte": 5,
+    "saude": 5,
+    "lazer": 5,
+    "servicos": 4,
+    "outros": 5,
+    "cartao_de_credito": 3,
+  };
     return localStorage.getItem("fluxo_monday_token") || "";
   }
 
@@ -370,8 +404,15 @@
         const amount    = Math.abs(parseFloat(col(MONDAY_COLS.value)?.text || "0"));
         const kindText  = col(MONDAY_COLS.kind)?.text || "Despesa";
         const statusTxt = col(MONDAY_COLS.status)?.text || "Previsto";
-        const category  = col(MONDAY_COLS.category)?.text || "Outros";
-        const catId     = state.categories.find(c => c.label.toLowerCase() === category.toLowerCase())?.id || "outros";
+        let catId = "outros";
+        try {
+          const catRaw = col(MONDAY_COLS.category)?.value;
+          if (catRaw) {
+            const parsed = JSON.parse(catRaw);
+            const dropId = String(parsed.ids?.[0] || "");
+            catId = MONDAY_DROPDOWN_MAP[dropId] || "outros";
+          }
+        } catch {}
         return {
           id: "monday_" + item.id,
           mondayId: item.id,
@@ -427,12 +468,15 @@
     const token = getMondayToken();
     if (!token) return;
     const groupId = t.status === "realized" ? "group_mm24q7bz" : "topics";
+    const catLabel = state.categories.find(c => c.id === t.categoryId)?.label || "";
+    const dropdownId = CAT_TO_DROPDOWN[t.categoryId] || 5;
     const colValues = JSON.stringify({
-      [MONDAY_COLS.date]:   { date: t.month + "-01" },
-      [MONDAY_COLS.value]:  t.amount,
-      [MONDAY_COLS.notes]:  t.description,
-      [MONDAY_COLS.kind]:   { index: t.kind === "income" ? 1 : 2 },
-      [MONDAY_COLS.status]: { index: t.status === "realized" ? 2 : 1 },
+      [MONDAY_COLS.date]:     { date: t.month + "-01" },
+      [MONDAY_COLS.value]:    t.amount,
+      [MONDAY_COLS.notes]:    t.description,
+      [MONDAY_COLS.kind]:     { index: t.kind === "income" ? 1 : 2 },
+      [MONDAY_COLS.status]:   { index: t.status === "realized" ? 2 : 1 },
+      [MONDAY_COLS.category]: { ids: [dropdownId] },
     });
     const r = await fetch("https://api.monday.com/v2", {
       method: "POST",

@@ -477,7 +477,6 @@
   async function updateStatusOnMonday(mondayId, status) {
     const token = getMondayToken();
     if (!token || !mondayId) return;
-    const groupId = status === "realized" ? "group_mm24q7bz" : "topics";
     const colValues = JSON.stringify({
       [MONDAY_COLS.status]: { index: status === "realized" ? 2 : 1 },
     });
@@ -487,14 +486,6 @@
       body: JSON.stringify({
         query: `mutation($id: ID!, $cols: JSON!) { change_multiple_column_values(item_id: $id, board_id: ${MONDAY_BOARD_ID}, column_values: $cols) { id } }`,
         variables: { id: mondayId, cols: colValues }
-      }),
-    });
-    await fetch("https://api.monday.com/v2", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": token, "API-Version": "2024-01" },
-      body: JSON.stringify({
-        query: `mutation($id: ID!, $group: String!) { move_item_to_group(item_id: $id, group_id: $group) { id } }`,
-        variables: { id: mondayId, group: groupId }
       }),
     });
   }

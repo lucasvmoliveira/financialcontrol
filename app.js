@@ -385,8 +385,8 @@
           createdAt: new Date().toISOString(),
         };
       });
-      const localOnly = state.transactions.filter(t => !t.mondayId);
-      state.transactions = [...transactions, ...localOnly];
+      // Monday é fonte de verdade — substitui tudo
+      state.transactions = transactions;
       saveState();
       fullRender();
       if (statusEl) statusEl.textContent = "Sincronizado! " + transactions.length + " lançamentos carregados.";
@@ -1240,6 +1240,11 @@
     el.monthFilter.value = monthFromDate();
     refreshCategoryOptions();
     fullRender();
+
+    // Auto-sync do Monday ao abrir se tiver token
+    if (getMondayToken()) {
+      syncFromMonday();
+    }
   }
 
   if (document.readyState === "loading") {

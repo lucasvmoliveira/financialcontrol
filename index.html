@@ -49,11 +49,19 @@
     <main>
       <div class="toolbar">
         <div class="toolbar-group">
-          <label for="monthFilter">Período</label>
-          <select id="monthFilter" aria-label="Filtrar por mês" multiple size="3" style="min-width:160px"></select>
+          <label for="dateFrom">De</label>
+          <input type="month" id="dateFrom" aria-label="Data início" />
         </div>
         <div class="toolbar-group">
-          <label for="openingBalance">Ajuste rápido do saldo inicial</label>
+          <label for="dateTo">Até</label>
+          <input type="month" id="dateTo" aria-label="Data fim" />
+        </div>
+        <div class="toolbar-group">
+          <label>&nbsp;</label>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnClearDates">Limpar filtro</button>
+        </div>
+        <div class="toolbar-group" style="margin-left:auto">
+          <label for="openingBalance">Saldo inicial</label>
           <input
             type="number"
             id="openingBalance"
@@ -63,43 +71,59 @@
           />
         </div>
       </div>
+      <!-- hidden select mantido para compatibilidade interna do JS -->
+      <select id="monthFilter" aria-hidden="true" multiple style="display:none"></select>
 
-      <section class="grid-kpis" aria-label="Indicadores do período">
-        <article class="kpi">
-          <div class="kpi-label">Receitas realizadas</div>
-          <div class="kpi-value income" id="kpiIncomeR">—</div>
-          <div class="kpi-hint">Efetivamente recebidas</div>
-        </article>
-        <article class="kpi">
-          <div class="kpi-label">Despesas realizadas</div>
-          <div class="kpi-value expense" id="kpiExpenseR">—</div>
-          <div class="kpi-hint">Efetivamente pagas</div>
-        </article>
-        <article class="kpi">
-          <div class="kpi-label">Resultado realizado</div>
-          <div class="kpi-value" id="kpiRealized">—</div>
-          <div class="kpi-hint">Só o que já aconteceu</div>
-        </article>
-        <article class="kpi">
-          <div class="kpi-label">Receitas previstas</div>
-          <div class="kpi-value planned" id="kpiIncomeP">—</div>
-          <div class="kpi-hint">Ainda a receber</div>
-        </article>
-        <article class="kpi">
-          <div class="kpi-label">Despesas previstas</div>
-          <div class="kpi-value planned" id="kpiExpenseP">—</div>
-          <div class="kpi-hint">Ainda a pagar</div>
-        </article>
-        <article class="kpi">
-          <div class="kpi-label">Resultado do período</div>
-          <div class="kpi-value" id="kpiNetMonth">—</div>
-          <div class="kpi-hint">Realizado + previsto</div>
-        </article>
-        <article class="kpi">
-          <div class="kpi-label">Saldo ao fim</div>
-          <div class="kpi-value" id="kpiLiquidity">—</div>
-          <div class="kpi-hint">Acumulado desde o saldo inicial</div>
-        </article>
+      <section aria-label="Indicadores do período">
+        <!-- Bloco 1: Realizado -->
+        <div class="kpi-group">
+          <div class="kpi-group-label">✅ Já aconteceu</div>
+          <div class="kpi-group-cards">
+            <article class="kpi">
+              <div class="kpi-label">Receitas recebidas</div>
+              <div class="kpi-value income" id="kpiIncomeR">—</div>
+            </article>
+            <article class="kpi">
+              <div class="kpi-label">Despesas pagas</div>
+              <div class="kpi-value expense" id="kpiExpenseR">—</div>
+            </article>
+            <article class="kpi kpi-highlight">
+              <div class="kpi-label">Saldo realizado</div>
+              <div class="kpi-value" id="kpiRealized">—</div>
+              <div class="kpi-hint">Receitas − Despesas efetivas</div>
+            </article>
+          </div>
+        </div>
+        <!-- Bloco 2: Previsto -->
+        <div class="kpi-group">
+          <div class="kpi-group-label">🔮 Ainda vai acontecer</div>
+          <div class="kpi-group-cards">
+            <article class="kpi">
+              <div class="kpi-label">A receber</div>
+              <div class="kpi-value planned" id="kpiIncomeP">—</div>
+            </article>
+            <article class="kpi">
+              <div class="kpi-label">A pagar</div>
+              <div class="kpi-value expense" id="kpiExpenseP">—</div>
+            </article>
+            <article class="kpi kpi-highlight">
+              <div class="kpi-label">Déficit / superávit previsto</div>
+              <div class="kpi-value" id="kpiNetMonth">—</div>
+              <div class="kpi-hint">Realizado + previsto</div>
+            </article>
+          </div>
+        </div>
+        <!-- Bloco 3: Projeção -->
+        <div class="kpi-group">
+          <div class="kpi-group-label">📈 Projeção</div>
+          <div class="kpi-group-cards">
+            <article class="kpi kpi-highlight">
+              <div class="kpi-label">Saldo ao fim do período</div>
+              <div class="kpi-value" id="kpiLiquidity">—</div>
+              <div class="kpi-hint">Acumulado desde o saldo inicial</div>
+            </article>
+          </div>
+        </div>
       </section>
 
       <section class="section" aria-labelledby="titulo-lancamento">
@@ -322,7 +346,7 @@
             <button type="button" class="btn btn-primary" id="btnGenerateInsights">Gerar insights agora</button>
           </div>
           <p class="kpi-hint" id="insightsStatus" style="margin-top: 0.5rem; min-height: 1.25rem"></p>
-          <pre class="insights-output" id="insightsOutput" hidden></pre>
+          <div class="insights-output" id="insightsOutput" hidden></div>
         </div>
 
         <div class="modal-actions">
@@ -348,6 +372,384 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html><!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Fluxo — controle financeiro pessoal com previsão, realização e projeção de saldo."
+    />
+    <title>Fluxo — Controle financeiro estratégico</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Use arquivos na raiz do repo (compatível com upload direto no GitHub) -->
+    <link rel="stylesheet" href="app.css" />
+    <style>
+      /* Fallback mínimo se app.css não carregar (404) */
+      html {
+        font-family: system-ui, -apple-system, sans-serif;
+        background: #0c1117;
+        color: #e8edf4;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="app-header-inner">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">◇</div>
+          <div>
+            <h1>Fluxo</h1>
+            <p>Controle financeiro estratégico · previsão e realização</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-ghost" id="btnCategories">Categorias</button>
+          <button type="button" class="btn btn-ghost" id="btnOpening">Saldo inicial</button>
+          <button type="button" class="btn btn-ghost" id="btnExport">Exportar JSON</button>
+          <button type="button" class="btn btn-ghost" id="btnImport">Importar backup</button>
+          <button type="button" class="btn btn-ghost" id="btnInsights">Insights (IA)</button>
+          <input type="file" id="fileImport" accept="application/json" class="sr-only" tabindex="-1" />
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <label for="dateFrom">De</label>
+          <input type="month" id="dateFrom" aria-label="Data início" />
+        </div>
+        <div class="toolbar-group">
+          <label for="dateTo">Até</label>
+          <input type="month" id="dateTo" aria-label="Data fim" />
+        </div>
+        <div class="toolbar-group">
+          <label>&nbsp;</label>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnClearDates">Limpar filtro</button>
+        </div>
+        <div class="toolbar-group" style="margin-left:auto">
+          <label for="openingBalance">Saldo inicial</label>
+          <input
+            type="number"
+            id="openingBalance"
+            step="0.01"
+            title="Saldo antes do primeiro mês com lançamentos"
+            aria-label="Saldo inicial"
+          />
+        </div>
+      </div>
+      <!-- hidden select mantido para compatibilidade interna do JS -->
+      <select id="monthFilter" aria-hidden="true" multiple style="display:none"></select>
+
+      <section aria-label="Indicadores do período">
+        <!-- Bloco 1: Realizado -->
+        <div class="kpi-group">
+          <div class="kpi-group-label">✅ Já aconteceu</div>
+          <div class="kpi-group-cards">
+            <article class="kpi">
+              <div class="kpi-label">Receitas recebidas</div>
+              <div class="kpi-value income" id="kpiIncomeR">—</div>
+            </article>
+            <article class="kpi">
+              <div class="kpi-label">Despesas pagas</div>
+              <div class="kpi-value expense" id="kpiExpenseR">—</div>
+            </article>
+            <article class="kpi kpi-highlight">
+              <div class="kpi-label">Saldo realizado</div>
+              <div class="kpi-value" id="kpiRealized">—</div>
+              <div class="kpi-hint">Receitas − Despesas efetivas</div>
+            </article>
+          </div>
+        </div>
+        <!-- Bloco 2: Previsto -->
+        <div class="kpi-group">
+          <div class="kpi-group-label">🔮 Ainda vai acontecer</div>
+          <div class="kpi-group-cards">
+            <article class="kpi">
+              <div class="kpi-label">A receber</div>
+              <div class="kpi-value planned" id="kpiIncomeP">—</div>
+            </article>
+            <article class="kpi">
+              <div class="kpi-label">A pagar</div>
+              <div class="kpi-value expense" id="kpiExpenseP">—</div>
+            </article>
+            <article class="kpi kpi-highlight">
+              <div class="kpi-label">Déficit / superávit previsto</div>
+              <div class="kpi-value" id="kpiNetMonth">—</div>
+              <div class="kpi-hint">Realizado + previsto</div>
+            </article>
+          </div>
+        </div>
+        <!-- Bloco 3: Projeção -->
+        <div class="kpi-group">
+          <div class="kpi-group-label">📈 Projeção</div>
+          <div class="kpi-group-cards">
+            <article class="kpi kpi-highlight">
+              <div class="kpi-label">Saldo ao fim do período</div>
+              <div class="kpi-value" id="kpiLiquidity">—</div>
+              <div class="kpi-hint">Acumulado desde o saldo inicial</div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="titulo-lancamento">
+        <h2 class="section-title" id="titulo-lancamento">Novo lançamento</h2>
+        <form id="formLancamento" class="form-grid" autocomplete="off">
+          <div class="toolbar-group full">
+            <label for="desc">Descrição</label>
+            <input type="text" id="desc" placeholder="Ex.: Aluguel, Salário, Netflix" required />
+          </div>
+          <div class="toolbar-group">
+            <label for="amount">Valor (R$)</label>
+            <input type="number" id="amount" min="0.01" step="0.01" required />
+          </div>
+          <div class="toolbar-group">
+            <label for="kind">Tipo</label>
+            <select id="kind">
+              <option value="income">Receita</option>
+              <option value="expense">Despesa</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="category">Categoria</label>
+            <select id="category"></select>
+          </div>
+          <div class="toolbar-group">
+            <label for="month">Mês de referência</label>
+            <input type="month" id="month" required />
+          </div>
+          <div class="toolbar-group">
+            <label for="status">Status</label>
+            <select id="status">
+              <option value="planned">Previsto</option>
+              <option value="realized">Realizado</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="recurrence">Recorrência</label>
+            <select id="recurrence" title="Mensal: repete em todos os meses seguintes nas projeções e totais">
+              <option value="none">Única</option>
+              <option value="monthly">Mensal</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label class="sr-only" for="submitLancamento">Adicionar</label>
+            <button type="submit" class="btn btn-primary" id="submitLancamento">Adicionar</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="charts-row" aria-label="Gráficos">
+        <div class="section">
+          <h2 class="section-title">Fluxo no período</h2>
+          <p class="kpi-hint" style="margin: -0.5rem 0 1rem">
+            Barras: resultado líquido realizado vs previsto por mês (com recorrência aplicada).
+          </p>
+          <div class="chart-wrap">
+            <canvas id="chartFlow" role="img" aria-label="Gráfico de fluxo"></canvas>
+          </div>
+        </div>
+        <div class="section">
+          <h2 class="section-title">Projeção de saldo</h2>
+          <p class="kpi-hint" style="margin: -0.5rem 0 1rem">
+            Linha acumulada a partir do saldo inicial e dos lançamentos (inclui itens mensais).
+          </p>
+          <div class="chart-wrap">
+            <canvas id="chartProjection" role="img" aria-label="Projeção de saldo"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">Despesas por categoria</h2>
+        <p class="kpi-hint" style="margin: -0.5rem 0 1rem">
+          Com “Todos os períodos”: últimos 12 meses. Com mês filtrado: só aquele mês.
+        </p>
+        <div class="chart-wrap" style="max-width: 480px; margin: 0 auto">
+          <canvas id="chartCategories" role="img" aria-label="Categorias"></canvas>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="titulo-extrato">
+        <h2 class="section-title" id="titulo-extrato">Lançamentos</h2>
+        <div class="table-wrap">
+          <table id="tableTransactions">
+            <thead>
+              <tr>
+                <th>Mês</th>
+                <th>Descrição</th>
+                <th>Tipo</th>
+                <th>Categoria</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Recorrência</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      Dados salvos apenas neste navegador (localStorage). Use Exportar para backup antes de limpar o cache.
+      <br />
+      <a href="https://pages.github.com/" style="color: var(--accent)">GitHub Pages</a>
+      — publique esta pasta como site estático.
+    </footer>
+
+    <div class="modal-overlay" id="modalCategories" role="dialog" aria-modal="true" aria-labelledby="modalCategoriesTitle">
+      <div class="modal modal-wide">
+        <h3 id="modalCategoriesTitle">Categorias</h3>
+        <p class="kpi-hint" style="margin-top: -0.5rem">
+          Crie rótulos novos ou altere o nome. Tipo define se a categoria aparece em receitas, despesas ou nos dois. Só é possível
+          remover uma categoria que não esteja em nenhum lançamento.
+        </p>
+        <div class="table-wrap" style="margin-top: 1rem">
+          <table class="table-compact" id="tableCategories">
+            <thead>
+              <tr>
+                <th>Nome (rótulo)</th>
+                <th>Tipo</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="modalCategoriesBody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions" style="justify-content: space-between; flex-wrap: wrap; margin-top: 1rem">
+          <button type="button" class="btn btn-ghost" id="btnAddCategoryRow">+ Nova categoria</button>
+          <div style="display: flex; gap: 0.5rem">
+            <button type="button" class="btn btn-ghost" id="btnCancelCategories">Fechar</button>
+            <button type="button" class="btn btn-primary" id="btnSaveCategories">Salvar categorias</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modalEditTx" role="dialog" aria-modal="true" aria-labelledby="modalEditTxTitle">
+      <div class="modal modal-wide">
+        <h3 id="modalEditTxTitle">Editar lançamento</h3>
+        <p class="kpi-hint" style="margin-top: -0.5rem">Altere descrição, valor, tipo, categoria, mês, status ou recorrência.</p>
+        <input type="hidden" id="editTxId" />
+        <div class="form-edit-grid">
+          <div class="toolbar-group full">
+            <label for="editDesc">Descrição</label>
+            <input type="text" id="editDesc" />
+          </div>
+          <div class="toolbar-group">
+            <label for="editAmount">Valor (R$)</label>
+            <input type="number" id="editAmount" min="0.01" step="0.01" />
+          </div>
+          <div class="toolbar-group">
+            <label for="editKind">Tipo</label>
+            <select id="editKind">
+              <option value="income">Receita</option>
+              <option value="expense">Despesa</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="editCategory">Categoria</label>
+            <select id="editCategory"></select>
+          </div>
+          <div class="toolbar-group">
+            <label for="editMonth">Mês</label>
+            <input type="month" id="editMonth" />
+          </div>
+          <div class="toolbar-group">
+            <label for="editStatus">Status</label>
+            <select id="editStatus">
+              <option value="planned">Previsto</option>
+              <option value="realized">Realizado</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label for="editRecurrence">Recorrência</label>
+            <select id="editRecurrence">
+              <option value="none">Única</option>
+              <option value="monthly">Mensal</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="btnCancelEditTx">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnSaveEditTx">Salvar alterações</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modalInsights" role="dialog" aria-modal="true" aria-labelledby="modalInsightsTitle">
+      <div class="modal modal-wide">
+        <h3 id="modalInsightsTitle">Monday + Insights com IA</h3>
+
+        <p class="kpi-hint" style="margin-top: -0.5rem">
+          Conecte ao Monday para sincronizar lançamentos e gere insights com a API Anthropic.
+        </p>
+
+        <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin-top: 1rem;">
+          <p style="margin: 0 0 0.75rem; font-size: 0.85rem; font-weight: 600;">Monday.com</p>
+          <div class="toolbar-group">
+            <label for="mondayTokenInput">Token da API Monday</label>
+            <input type="password" id="mondayTokenInput" placeholder="eyJhbGci…" autocomplete="off" />
+          </div>
+          <div class="modal-actions" style="justify-content: flex-start; margin-top: 0.75rem;">
+            <button type="button" class="btn btn-ghost" id="btnSaveMondayToken">Salvar token</button>
+            <button type="button" class="btn btn-primary" id="btnSyncMonday">Sincronizar do Monday</button>
+            <button type="button" class="btn btn-ghost" id="btnExportAllMonday">Exportar tudo para Monday</button>
+          </div>
+          <p class="kpi-hint" id="mondaySyncStatus" style="margin-top: 0.5rem; min-height: 1.25rem"></p>
+        </div>
+
+        <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin-top: 1rem;">
+          <p style="margin: 0 0 0.75rem; font-size: 0.85rem; font-weight: 600;">Insights com IA (Anthropic)</p>
+          <div class="toolbar-group">
+            <label for="insightsApiKey">Chave da API Anthropic</label>
+            <input type="password" id="insightsApiKey" placeholder="sk-ant-…" autocomplete="off" />
+          </div>
+          <div class="modal-actions" style="justify-content: flex-start; margin-top: 0.75rem;">
+            <button type="button" class="btn btn-ghost" id="btnSaveInsightsConfig">Salvar chave</button>
+            <button type="button" class="btn btn-primary" id="btnGenerateInsights">Gerar insights agora</button>
+          </div>
+          <p class="kpi-hint" id="insightsStatus" style="margin-top: 0.5rem; min-height: 1.25rem"></p>
+          <div class="insights-output" id="insightsOutput" hidden></div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="btnCloseInsights">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modalOpening" role="dialog" aria-modal="true" aria-labelledby="modalOpeningTitle">
+      <div class="modal">
+        <h3 id="modalOpeningTitle">Saldo inicial</h3>
+        <p class="kpi-hint">
+          Valor do seu patrimônio líquido imediatamente antes do primeiro mês em que você passou a lançar aqui.
+          Ele ancora a projeção de saldo acumulado.
+        </p>
+        <label for="openingBalanceModal" class="sr-only">Valor</label>
+        <input type="number" id="openingBalanceModal" step="0.01" />
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="btnCancelOpening">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnSaveOpening">Salvar</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

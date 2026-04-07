@@ -665,15 +665,56 @@
   let chartProjection;
   let chartCategories;
 
+  let _selectedMonths = new Set([monthFromDate()]);
+
+  function getSelectedMonths() {
+    return [..._selectedMonths];
+  }
+
   function populateMonthSelects() {
     const months = sortedUniqueMonthsFromData();
     const cur = monthFromDate();
     const set = new Set([cur, ...months]);
     const sorted = [...set].sort(compareMonth);
-    const prev = getSelectedMonths();
-    el.monthFilter.innerHTML = sorted.map((m) =>
-      `<option value="${m}" ${prev.includes(m) ? "selected" : ""}>${formatMonthLabel(m)}</option>`
-    ).join("");
+    const pills = document.getElementById("monthPills");
+    if (!pills) return;
+
+    // Botão "Todos"
+    const allBtn = document.createElement("button");
+    allBtn.type = "button";
+    allBtn.textContent = "Todos";
+    allBtn.className = "btn btn-sm" + (_selectedMonths.size === 0 ? " btn-primary" : " btn-ghost");
+    allBtn.onclick = () => {
+      _selectedMonths.clear();
+      populateMonthSelects();
+      renderKpis(); renderTable(); renderCharts();
+    };
+    pills.innerHTML = "";
+    pills.appendChild(allBtn);
+
+    sorted.forEach((m) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = formatMonthLabel(m);
+      btn.className = "btn btn-sm" + (_selectedMonths.has(m) ? " btn-primary" : " btn-ghost");
+      btn.onclick = (e) => {
+        if (e.shiftKey) {
+          if (_selectedMonths.has(m)) _selectedMonths.delete(m);
+          else _selectedMonths.add(m);
+        } else {
+          if (_selectedMonths.has(m) && _selectedMonths.size === 1) {
+            _selectedMonths.clear();
+          } else {
+            _selectedMonths.clear();
+            _selectedMonths.add(m);
+          }
+        }
+        populateMonthSelects();
+        renderKpis(); renderTable(); renderCharts();
+      };
+      pills.appendChild(btn);
+    });
+
     el.month.value = cur;
   }
 
@@ -762,35 +803,54 @@
       return;
     }
 
-    el.tbody.innerHTML = rows
-      .map((t) => {
-        const signed = t.kind === "income" ? t.amount : -t.amount;
-        const moneyClass = t.kind === "income" ? "money-in" : "money-out";
-        const statusBadge =
-          t.status === "realized"
-            ? '<span class="badge badge-realized">Realizado</span>'
-            : '<span class="badge badge-planned">Previsto</span>';
-        const rec =
-          t.recurrence === "monthly"
-            ? '<span class="badge badge-planned" title="Repete a cada mês a partir da referência">Mensal</span>'
-            : "—";
-        return `<tr data-id="${t.id}">
+    const planned  = rows.filter(t => t.status === "planned");
+    const realized = rows.filter(t => t.status === "realized");
+
+    const renderRow = (t) => {
+      const signed = t.kind === "income" ? t.amount : -t.amount;
+      const moneyClass = t.kind === "income" ? "money-in" : "money-out";
+      const rec = t.recurrence === "monthly"
+        ? '<span class="badge badge-planned">Mensal</span>' : "—";
+      return `<tr data-id="${t.id}">
         <td>${formatMonthLabel(t.month)}</td>
         <td>${escapeHtml(t.description)}</td>
         <td><span class="badge ${t.kind === "income" ? "badge-income" : "badge-expense"}">${t.kind === "income" ? "Receita" : "Despesa"}</span></td>
         <td>${escapeHtml(categoryLabel(t.categoryId))}</td>
         <td class="${moneyClass}">${formatBRL(signed)}</td>
-        <td>${statusBadge}</td>
         <td>${rec}</td>
         <td class="row-actions">
-          <button type="button" class="btn btn-sm btn-primary js-edit" title="Alterar lançamento">Editar</button>
-          <button type="button" class="btn btn-sm btn-ghost js-realize" title="Marcar como pago/recebido" ${t.status === "realized" ? "disabled" : ""}>Realizar</button>
-          <button type="button" class="btn btn-sm btn-ghost js-unrealize" title="Voltar para previsto" ${t.status === "planned" ? "disabled" : ""}>Voltar a previsto</button>
+          <button type="button" class="btn btn-sm btn-primary js-edit">Editar</button>
+          ${t.status === "planned"
+            ? `<button type="button" class="btn btn-sm btn-ghost js-realize">✓ Realizar</button>`
+            : `<button type="button" class="btn btn-sm btn-ghost js-unrealize">↩ Previsto</button>`}
           <button type="button" class="btn btn-sm btn-danger js-delete">Excluir</button>
         </td>
       </tr>`;
-      })
-      .join("");
+    };
+
+    const totalPlanned  = planned.reduce((s, t) => s + (t.kind === "income" ? t.amount : -t.amount), 0);
+    const totalRealized = realized.reduce((s, t) => s + (t.kind === "income" ? t.amount : -t.amount), 0);
+
+    el.tbody.innerHTML = `
+      <tr class="group-header">
+        <td colspan="5" style="background:var(--planned-soft);color:var(--planned);font-weight:700;padding:.5rem .75rem">
+          Previstos (${planned.length})
+        </td>
+        <td colspan="3" style="background:var(--planned-soft);color:var(--planned);font-weight:700;text-align:right;padding:.5rem .75rem">
+          ${formatBRL(totalPlanned)}
+        </td>
+      </tr>
+      ${planned.length ? planned.map(renderRow).join("") : `<tr><td colspan="8" style="padding:.5rem .75rem;color:var(--text-muted)">Nenhum previsto</td></tr>`}
+      <tr class="group-header">
+        <td colspan="5" style="background:var(--accent-soft);color:var(--accent);font-weight:700;padding:.5rem .75rem">
+          Realizados (${realized.length})
+        </td>
+        <td colspan="3" style="background:var(--accent-soft);color:var(--accent);font-weight:700;text-align:right;padding:.5rem .75rem">
+          ${formatBRL(totalRealized)}
+        </td>
+      </tr>
+      ${realized.length ? realized.map(renderRow).join("") : `<tr><td colspan="8" style="padding:.5rem .75rem;color:var(--text-muted)">Nenhum realizado</td></tr>`}
+    `;
 
     el.tbody.querySelectorAll("tr[data-id]").forEach((tr) => {
       const id = tr.getAttribute("data-id");
@@ -799,7 +859,7 @@
         if (confirm("Excluir este lançamento?")) {
           const t = state.transactions.find((x) => x.id === id);
           const mondayId = t?.mondayId;
-          state.transactions = state.transactions.filter((t) => t.id !== id);
+          state.transactions = state.transactions.filter((x) => x.id !== id);
           saveState();
           fullRender();
           if (mondayId) deleteFromMonday(mondayId);
@@ -816,7 +876,7 @@
       });
       tr.querySelector(".js-unrealize")?.addEventListener("click", () => {
         const t = state.transactions.find((x) => x.id === id);
-        if (t && t.status === "realized") {
+        if (t) {
           t.status = "planned";
           saveState();
           fullRender();
@@ -1168,7 +1228,6 @@
   }
 
   function fullRender() {
-    const saved = getSelectedMonths();
     populateMonthSelects();
     refreshCategoryOptions();
     renderKpis();
@@ -1212,12 +1271,6 @@
     });
 
     el.kind.addEventListener("change", refreshCategoryOptions);
-
-    el.monthFilter.addEventListener("change", () => {
-      renderKpis();
-      renderTable();
-      renderCharts();
-    });
 
     onClick("btnOpening", () => {
       el.modalOpening?.classList.add("open");
@@ -1321,9 +1374,6 @@
     });
 
     populateMonthSelects();
-    // Seleciona mês atual por padrão
-    const curOpt = [...el.monthFilter.options].find(o => o.value === monthFromDate());
-    if (curOpt) curOpt.selected = true;
     refreshCategoryOptions();
     fullRender();
 

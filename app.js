@@ -668,6 +668,17 @@
       modalCategoriesBody: document.getElementById("modalCategoriesBody"),
       modalEditTx: document.getElementById("modalEditTx"),
     };
+
+    // Injeta o container split logo após a tabela original (se ainda não existir)
+    if (!document.getElementById("tableSplitContainer")) {
+      const originalTable = document.getElementById("tableTransactions");
+      if (originalTable) {
+        originalTable.style.display = "none";
+        const container = document.createElement("div");
+        container.id = "tableSplitContainer";
+        originalTable.parentNode.insertBefore(container, originalTable.nextSibling);
+      }
+    }
   }
 
   function onClick(id, handler) {
@@ -774,51 +785,31 @@
     }
   }
 
-  function renderTable() {
-    const selected = getSelectedMonths();
-    let rows = [...state.transactions].sort((a, b) => {
-      const mc = compareMonth(a.month, b.month);
-      if (mc !== 0) return mc;
-      return (b.createdAt || "").localeCompare(a.createdAt || "");
-    });
-    if (selected.length) rows = rows.filter((t) => selected.includes(t.month));
+  function buildRowHtml(t) {
+    const signed = t.kind === "income" ? t.amount : -t.amount;
+    const moneyClass = t.kind === "income" ? "money-in" : "money-out";
+    const rec =
+      t.recurrence === "monthly"
+        ? '<span class="badge badge-planned" title="Repete a cada mês">Mensal</span>'
+        : "—";
+    return `<tr data-id="${t.id}">
+      <td>${formatMonthLabel(t.month)}</td>
+      <td>${escapeHtml(t.description)}</td>
+      <td><span class="badge ${t.kind === "income" ? "badge-income" : "badge-expense"}">${t.kind === "income" ? "Receita" : "Despesa"}</span></td>
+      <td>${escapeHtml(categoryLabel(t.categoryId))}</td>
+      <td class="${moneyClass}">${formatBRL(signed)}</td>
+      <td>${rec}</td>
+      <td class="row-actions">
+        <button type="button" class="btn btn-sm btn-primary js-edit" title="Alterar lançamento">Editar</button>
+        <button type="button" class="btn btn-sm btn-ghost js-realize" title="Marcar como pago/recebido" ${t.status === "realized" ? "disabled" : ""}>Realizar</button>
+        <button type="button" class="btn btn-sm btn-ghost js-unrealize" title="Voltar para previsto" ${t.status === "planned" ? "disabled" : ""}>Voltar a previsto</button>
+        <button type="button" class="btn btn-sm btn-danger js-delete">Excluir</button>
+      </td>
+    </tr>`;
+  }
 
-    if (!rows.length) {
-      el.tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Nenhum lançamento neste filtro.</td></tr>`;
-      return;
-    }
-
-    el.tbody.innerHTML = rows
-      .map((t) => {
-        const signed = t.kind === "income" ? t.amount : -t.amount;
-        const moneyClass = t.kind === "income" ? "money-in" : "money-out";
-        const statusBadge =
-          t.status === "realized"
-            ? '<span class="badge badge-realized">Realizado</span>'
-            : '<span class="badge badge-planned">Previsto</span>';
-        const rec =
-          t.recurrence === "monthly"
-            ? '<span class="badge badge-planned" title="Repete a cada mês a partir da referência">Mensal</span>'
-            : "—";
-        return `<tr data-id="${t.id}">
-        <td>${formatMonthLabel(t.month)}</td>
-        <td>${escapeHtml(t.description)}</td>
-        <td><span class="badge ${t.kind === "income" ? "badge-income" : "badge-expense"}">${t.kind === "income" ? "Receita" : "Despesa"}</span></td>
-        <td>${escapeHtml(categoryLabel(t.categoryId))}</td>
-        <td class="${moneyClass}">${formatBRL(signed)}</td>
-        <td>${statusBadge}</td>
-        <td>${rec}</td>
-        <td class="row-actions">
-          <button type="button" class="btn btn-sm btn-primary js-edit" title="Alterar lançamento">Editar</button>
-          <button type="button" class="btn btn-sm btn-ghost js-realize" title="Marcar como pago/recebido" ${t.status === "realized" ? "disabled" : ""}>Realizar</button>
-          <button type="button" class="btn btn-sm btn-ghost js-unrealize" title="Voltar para previsto" ${t.status === "planned" ? "disabled" : ""}>Voltar a previsto</button>
-          <button type="button" class="btn btn-sm btn-danger js-delete">Excluir</button>
-        </td>
-      </tr>`;
-      })
-      .join("");
-
-    el.tbody.querySelectorAll("tr[data-id]").forEach((tr) => {
+  function attachRowEvents(container) {
+    container.querySelectorAll("tr[data-id]").forEach((tr) => {
       const id = tr.getAttribute("data-id");
       tr.querySelector(".js-edit")?.addEventListener("click", () => openEditTxModal(id));
       tr.querySelector(".js-delete")?.addEventListener("click", () => {
@@ -850,6 +841,107 @@
         }
       });
     });
+  }
+
+  function renderTable() {
+    const selected = getSelectedMonths();
+    let rows = [...state.transactions].sort((a, b) => {
+      const mc = compareMonth(a.month, b.month);
+      if (mc !== 0) return mc;
+      return (b.createdAt || "").localeCompare(a.createdAt || "");
+    });
+    if (selected.length) rows = rows.filter((t) => selected.includes(t.month));
+
+    // Fallback: se não houver o container split, cai no tbody original
+    const splitContainer = document.getElementById("tableSplitContainer");
+    if (!splitContainer) {
+      if (!rows.length) {
+        el.tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Nenhum lançamento neste filtro.</td></tr>`;
+        return;
+      }
+      el.tbody.innerHTML = rows.map(buildRowHtml).join("");
+      attachRowEvents(el.tbody);
+      return;
+    }
+
+    // Oculta a tabela original (pode existir no HTML)
+    const originalTable = el.tbody?.closest("table");
+    if (originalTable) originalTable.style.display = "none";
+
+    const planned = rows.filter((t) => t.status === "planned");
+    const realized = rows.filter((t) => t.status === "realized");
+
+    const colHeaders = `
+      <thead>
+        <tr>
+          <th>Mês</th>
+          <th>Descrição</th>
+          <th>Tipo</th>
+          <th>Categoria</th>
+          <th>Valor</th>
+          <th>Recor.</th>
+          <th>Ações</th>
+        </tr>
+      </thead>`;
+
+    const emptyRow = (msg) =>
+      `<tr><td colspan="7" class="empty-state">${msg}</td></tr>`;
+
+    // Totais previstos
+    const plannedIncomeTotal = planned.filter(t => t.kind === "income").reduce((s, t) => s + t.amount, 0);
+    const plannedExpenseTotal = planned.filter(t => t.kind === "expense").reduce((s, t) => s + t.amount, 0);
+    // Totais realizados
+    const realizedIncomeTotal = realized.filter(t => t.kind === "income").reduce((s, t) => s + t.amount, 0);
+    const realizedExpenseTotal = realized.filter(t => t.kind === "expense").reduce((s, t) => s + t.amount, 0);
+
+    const footerRow = (incomeTotal, expenseTotal) => `
+      <tfoot>
+        <tr style="border-top: 2px solid var(--border);">
+          <td colspan="4" style="font-size:0.75rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Totais</td>
+          <td style="font-weight:700;">
+            <span class="money-in" style="display:block;font-size:0.8rem;">+${formatBRL(incomeTotal)}</span>
+            <span class="money-out" style="display:block;font-size:0.8rem;">−${formatBRL(expenseTotal)}</span>
+          </td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>`;
+
+    splitContainer.innerHTML = `
+      <div class="split-tables-row">
+        <div class="split-table-col">
+          <div class="split-table-header split-header-planned">
+            <span>🕐 Previstos</span>
+            <span class="split-count">${planned.length} lançamento${planned.length !== 1 ? "s" : ""}</span>
+          </div>
+          <div class="table-wrap">
+            <table id="tablePlanned">
+              ${colHeaders}
+              <tbody id="tbodyPlanned">
+                ${planned.length ? planned.map(buildRowHtml).join("") : emptyRow("Nenhum lançamento previsto.")}
+              </tbody>
+              ${planned.length ? footerRow(plannedIncomeTotal, plannedExpenseTotal) : ""}
+            </table>
+          </div>
+        </div>
+        <div class="split-table-col">
+          <div class="split-table-header split-header-realized">
+            <span>✅ Realizados</span>
+            <span class="split-count">${realized.length} lançamento${realized.length !== 1 ? "s" : ""}</span>
+          </div>
+          <div class="table-wrap">
+            <table id="tableRealized">
+              ${colHeaders}
+              <tbody id="tbodyRealized">
+                ${realized.length ? realized.map(buildRowHtml).join("") : emptyRow("Nenhum lançamento realizado.")}
+              </tbody>
+              ${realized.length ? footerRow(realizedIncomeTotal, realizedExpenseTotal) : ""}
+            </table>
+          </div>
+        </div>
+      </div>`;
+
+    attachRowEvents(document.getElementById("tbodyPlanned"));
+    attachRowEvents(document.getElementById("tbodyRealized"));
   }
 
   function escapeHtml(s) {

@@ -670,9 +670,10 @@
     const cur = monthFromDate();
     const set = new Set([cur, ...months]);
     const sorted = [...set].sort(compareMonth);
-    el.monthFilter.innerHTML =
-      `<option value="">Todos os períodos</option>` +
-      sorted.map((m) => `<option value="${m}">${formatMonthLabel(m)}</option>`).join("");
+    const prev = getSelectedMonths();
+    el.monthFilter.innerHTML = sorted.map((m) =>
+      `<option value="${m}" ${prev.includes(m) ? "selected" : ""}>${formatMonthLabel(m)}</option>`
+    ).join("");
     el.month.value = cur;
   }
 
@@ -702,27 +703,23 @@
     el.category.innerHTML = list.map((c) => `<option value="${c.id}">${c.label}</option>`).join("");
   }
 
+  function getSelectedMonths() {
+    if (!el.monthFilter) return [];
+    const selected = [...el.monthFilter.selectedOptions].map(o => o.value).filter(Boolean);
+    return selected;
+  }
+
   function renderKpis() {
-    const ym = el.monthFilter.value;
     if (el.openingInput) el.openingInput.value = String(state.openingBalance);
+    const selected = getSelectedMonths();
+    const months = selected.length ? selected : sortedUniqueMonthsFromData();
 
     let incomeR = 0, expenseR = 0, incomeP = 0, expenseP = 0;
-
-    if (!ym) {
-      // Período todo: soma todos os meses com dados
-      const months = sortedUniqueMonthsFromData();
-      months.forEach((m) => {
-        const f = flowsForMonth(m);
-        incomeR += f.incomeR;
-        expenseR += f.expenseR;
-        incomeP += f.incomeP;
-        expenseP += f.expenseP;
-      });
-    } else {
-      const f = flowsForMonth(ym);
-      incomeR = f.incomeR; expenseR = f.expenseR;
-      incomeP = f.incomeP; expenseP = f.expenseP;
-    }
+    months.forEach((m) => {
+      const f = flowsForMonth(m);
+      incomeR += f.incomeR; expenseR += f.expenseR;
+      incomeP += f.incomeP; expenseP += f.expenseP;
+    });
 
     const netTotal = incomeR + incomeP - expenseR - expenseP;
     const netRealized = incomeR - expenseR;
@@ -734,39 +731,31 @@
     el.kpiNetMonth.textContent = formatBRL(netTotal);
     el.kpiNetMonth.className = "kpi-value " + (netTotal >= 0 ? "income" : "expense");
 
-    // Diferença realizado
     const kpiDiff = document.getElementById("kpiRealized");
     if (kpiDiff) {
       kpiDiff.textContent = formatBRL(netRealized);
       kpiDiff.className = "kpi-value " + (netRealized >= 0 ? "income" : "expense");
     }
 
-    if (ym) {
-      const endBal = balanceBeforeMonth(addMonths(ym, 1));
+    if (months.length) {
+      const lastMonth = months[months.length - 1];
+      const endBal = balanceBeforeMonth(addMonths(lastMonth, 1));
       el.kpiLiquidity.textContent = formatBRL(endBal);
       el.kpiLiquidity.className = "kpi-value " + (endBal >= 0 ? "income" : "expense");
     } else {
-      const months = sortedUniqueMonthsFromData();
-      if (months.length) {
-        const lastMonth = months[months.length - 1];
-        const endBal = balanceBeforeMonth(addMonths(lastMonth, 1));
-        el.kpiLiquidity.textContent = formatBRL(endBal);
-        el.kpiLiquidity.className = "kpi-value " + (endBal >= 0 ? "income" : "expense");
-      } else {
-        el.kpiLiquidity.textContent = formatBRL(state.openingBalance);
-        el.kpiLiquidity.className = "kpi-value";
-      }
+      el.kpiLiquidity.textContent = formatBRL(state.openingBalance);
+      el.kpiLiquidity.className = "kpi-value";
     }
   }
 
   function renderTable() {
-    const ym = el.monthFilter.value;
+    const selected = getSelectedMonths();
     let rows = [...state.transactions].sort((a, b) => {
       const mc = compareMonth(a.month, b.month);
       if (mc !== 0) return mc;
       return (b.createdAt || "").localeCompare(a.createdAt || "");
     });
-    if (ym) rows = rows.filter((t) => t.month === ym);
+    if (selected.length) rows = rows.filter((t) => selected.includes(t.month));
 
     if (!rows.length) {
       el.tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Nenhum lançamento neste filtro.</td></tr>`;
@@ -989,6 +978,30 @@
     saveState();
     el.modalEditTx.classList.remove("open");
     fullRender();
+    // Sync ao Monday
+    if (t.mondayId) {
+      const groupId = t.status === "realized" ? "group_mm24q7bz" : "topics";
+      const catDropdownId = CAT_TO_DROPDOWN[t.categoryId] || 5;
+      const notesWithRecurrence = t.description + (t.recurrence === "monthly" ? " [mensal]" : "");
+      const colValues = JSON.stringify({
+        [MONDAY_COLS.date]:     { date: t.month + "-01" },
+        [MONDAY_COLS.value]:    t.amount,
+        [MONDAY_COLS.notes]:    notesWithRecurrence,
+        [MONDAY_COLS.kind]:     { index: t.kind === "income" ? 1 : 2 },
+        [MONDAY_COLS.status]:   { index: t.status === "realized" ? 2 : 1 },
+        [MONDAY_COLS.category]: { ids: [catDropdownId] },
+      });
+      fetch("https://api.monday.com/v2", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": getMondayToken(), "API-Version": "2024-01" },
+        body: JSON.stringify({
+          query: `mutation($id: ID!, $cols: JSON!) { change_multiple_column_values(item_id: $id, board_id: ${MONDAY_BOARD_ID}, column_values: $cols) { id } }`,
+          variables: { id: t.mondayId, cols: colValues }
+        }),
+      });
+    } else {
+      pushTransactionToMonday(t);
+    }
   }
 
   function renderCharts() {
@@ -1155,12 +1168,8 @@
   }
 
   function fullRender() {
-    const saved = el.monthFilter.value;
+    const saved = getSelectedMonths();
     populateMonthSelects();
-    if (saved) {
-      const opt = [...el.monthFilter.options].find((o) => o.value === saved);
-      if (opt) el.monthFilter.value = saved;
-    }
     refreshCategoryOptions();
     renderKpis();
     renderTable();
@@ -1312,7 +1321,9 @@
     });
 
     populateMonthSelects();
-    el.monthFilter.value = monthFromDate();
+    // Seleciona mês atual por padrão
+    const curOpt = [...el.monthFilter.options].find(o => o.value === monthFromDate());
+    if (curOpt) curOpt.selected = true;
     refreshCategoryOptions();
     fullRender();
 

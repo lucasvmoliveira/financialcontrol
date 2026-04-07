@@ -320,8 +320,9 @@
     value:      "numeric_mm245wmn",
     category:   "dropdown_mm245cyj",
     notes:      "text_mm24e62a",
-    kind:       "color_mm24kjzr",   // status: index 1=Receita, 2=Despesa
-    status:     "color_mm24ay2x",   // status: index 1=Previsto, 2=Realizado
+    kind:       "color_mm24kjzr",
+    status:     "color_mm24ay2x",
+    recurrence: "color_mm26we75",
   };
 
   const MONDAY_DROPDOWN_MAP = {
@@ -415,8 +416,8 @@
             catId = MONDAY_DROPDOWN_MAP[dropId] || "outros";
           }
         } catch {}
-        const notesRaw = col(MONDAY_COLS.notes)?.text || "";
-        const recurrence = notesRaw.includes("[mensal]") ? "monthly" : "none";
+        const recurrenceTxt = col(MONDAY_COLS.recurrence)?.text || "";
+        const recurrence = recurrenceTxt === "Mensal" ? "monthly" : "none";
         return {
           id: "monday_" + item.id,
           mondayId: item.id,
@@ -473,14 +474,14 @@
     if (!token) return;
     const groupId = t.status === "realized" ? "group_mm24q7bz" : "topics";
     const catDropdownId = CAT_TO_DROPDOWN[t.categoryId] || 5;
-    const notesWithRecurrence = t.description + (t.recurrence === "monthly" ? " [mensal]" : "");
     const colValues = JSON.stringify({
-      [MONDAY_COLS.date]:     { date: t.month + "-01" },
-      [MONDAY_COLS.value]:    t.amount,
-      [MONDAY_COLS.notes]:    notesWithRecurrence,
-      [MONDAY_COLS.kind]:     { index: t.kind === "income" ? 1 : 2 },
-      [MONDAY_COLS.status]:   { index: t.status === "realized" ? 2 : 1 },
-      [MONDAY_COLS.category]: { ids: [catDropdownId] },
+      [MONDAY_COLS.date]:       { date: t.month + "-01" },
+      [MONDAY_COLS.value]:      t.amount,
+      [MONDAY_COLS.notes]:      t.description,
+      [MONDAY_COLS.kind]:       { index: t.kind === "income" ? 1 : 2 },
+      [MONDAY_COLS.status]:     { index: t.status === "realized" ? 2 : 1 },
+      [MONDAY_COLS.category]:   { ids: [catDropdownId] },
+      [MONDAY_COLS.recurrence]: { index: t.recurrence === "monthly" ? 1 : 2 },
     });
     const r = await fetch("https://api.monday.com/v2", {
       method: "POST",
@@ -746,7 +747,7 @@
 
   function getSelectedMonths() {
     if (!el.monthFilter) return [];
-    const selected = [...el.monthFilter.selectedOptions].map(o => o.value).filter(Boolean);
+    // pills-based
     return selected;
   }
 
@@ -1040,16 +1041,15 @@
     fullRender();
     // Sync ao Monday
     if (t.mondayId) {
-      const groupId = t.status === "realized" ? "group_mm24q7bz" : "topics";
       const catDropdownId = CAT_TO_DROPDOWN[t.categoryId] || 5;
-      const notesWithRecurrence = t.description + (t.recurrence === "monthly" ? " [mensal]" : "");
       const colValues = JSON.stringify({
-        [MONDAY_COLS.date]:     { date: t.month + "-01" },
-        [MONDAY_COLS.value]:    t.amount,
-        [MONDAY_COLS.notes]:    notesWithRecurrence,
-        [MONDAY_COLS.kind]:     { index: t.kind === "income" ? 1 : 2 },
-        [MONDAY_COLS.status]:   { index: t.status === "realized" ? 2 : 1 },
-        [MONDAY_COLS.category]: { ids: [catDropdownId] },
+        [MONDAY_COLS.date]:       { date: t.month + "-01" },
+        [MONDAY_COLS.value]:      t.amount,
+        [MONDAY_COLS.notes]:      t.description,
+        [MONDAY_COLS.kind]:       { index: t.kind === "income" ? 1 : 2 },
+        [MONDAY_COLS.status]:     { index: t.status === "realized" ? 2 : 1 },
+        [MONDAY_COLS.category]:   { ids: [catDropdownId] },
+        [MONDAY_COLS.recurrence]: { index: t.recurrence === "monthly" ? 1 : 2 },
       });
       fetch("https://api.monday.com/v2", {
         method: "POST",
@@ -1066,7 +1066,8 @@
 
   function renderCharts() {
     if (typeof Chart === "undefined") return;
-    const ym = el.monthFilter.value;
+    const selected = getSelectedMonths();
+    const ym = selected.length === 1 ? selected[0] : null;
     const palette = {
       text: "#8b9cb3",
       grid: "rgba(45,58,79,0.45)",
@@ -1237,8 +1238,8 @@
 
   function startApp() {
     cacheDom();
-    if (!el.monthFilter || !el.form || !el.tbody) {
-      console.error("[Fluxo] HTML incompleto: faltam monthFilter, formulário ou tabela.");
+    if (!el.form || !el.tbody) {
+      console.error("[Fluxo] HTML incompleto.");
       return;
     }
 
@@ -1265,7 +1266,8 @@
       el.desc.value = "";
       el.amount.value = "";
       saveState();
-      el.monthFilter.value = t.month;
+      _selectedMonths.clear();
+      _selectedMonths.add(t.month);
       fullRender();
       pushTransactionToMonday(t);
     });

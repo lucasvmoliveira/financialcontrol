@@ -320,9 +320,8 @@
     value:      "numeric_mm245wmn",
     category:   "dropdown_mm245cyj",
     notes:      "text_mm24e62a",
-    kind:       "color_mm24kjzr",
-    status:     "color_mm24ay2x",
-    recurrence: "color_mm26we75",
+    kind:       "color_mm24kjzr",   // status: index 1=Receita, 2=Despesa
+    status:     "color_mm24ay2x",   // status: index 1=Previsto, 2=Realizado
   };
 
   const MONDAY_DROPDOWN_MAP = {
@@ -416,8 +415,8 @@
             catId = MONDAY_DROPDOWN_MAP[dropId] || "outros";
           }
         } catch {}
-        const recurrenceTxt = col(MONDAY_COLS.recurrence)?.text || "";
-        const recurrence = recurrenceTxt === "Mensal" ? "monthly" : "none";
+        const notesRaw = col(MONDAY_COLS.notes)?.text || "";
+        const recurrence = notesRaw.includes("[mensal]") ? "monthly" : "none";
         return {
           id: "monday_" + item.id,
           mondayId: item.id,
@@ -474,14 +473,14 @@
     if (!token) return;
     const groupId = t.status === "realized" ? "group_mm24q7bz" : "topics";
     const catDropdownId = CAT_TO_DROPDOWN[t.categoryId] || 5;
+    const notesWithRecurrence = t.description + (t.recurrence === "monthly" ? " [mensal]" : "");
     const colValues = JSON.stringify({
-      [MONDAY_COLS.date]:       { date: t.month + "-01" },
-      [MONDAY_COLS.value]:      t.amount,
-      [MONDAY_COLS.notes]:      t.description,
-      [MONDAY_COLS.kind]:       { index: t.kind === "income" ? 1 : 2 },
-      [MONDAY_COLS.status]:     { index: t.status === "realized" ? 2 : 1 },
-      [MONDAY_COLS.category]:   { ids: [catDropdownId] },
-      [MONDAY_COLS.recurrence]: { index: t.recurrence === "monthly" ? 1 : 2 },
+      [MONDAY_COLS.date]:     { date: t.month + "-01" },
+      [MONDAY_COLS.value]:    t.amount,
+      [MONDAY_COLS.notes]:    notesWithRecurrence,
+      [MONDAY_COLS.kind]:     { index: t.kind === "income" ? 1 : 2 },
+      [MONDAY_COLS.status]:   { index: t.status === "realized" ? 2 : 1 },
+      [MONDAY_COLS.category]: { ids: [catDropdownId] },
     });
     const r = await fetch("https://api.monday.com/v2", {
       method: "POST",
@@ -666,56 +665,15 @@
   let chartProjection;
   let chartCategories;
 
-  let _selectedMonths = new Set([monthFromDate()]);
-
-  function getSelectedMonths() {
-    return [..._selectedMonths];
-  }
-
   function populateMonthSelects() {
     const months = sortedUniqueMonthsFromData();
     const cur = monthFromDate();
     const set = new Set([cur, ...months]);
     const sorted = [...set].sort(compareMonth);
-    const pills = document.getElementById("monthPills");
-    if (!pills) return;
-
-    // Botão "Todos"
-    const allBtn = document.createElement("button");
-    allBtn.type = "button";
-    allBtn.textContent = "Todos";
-    allBtn.className = "btn btn-sm" + (_selectedMonths.size === 0 ? " btn-primary" : " btn-ghost");
-    allBtn.onclick = () => {
-      _selectedMonths.clear();
-      populateMonthSelects();
-      renderKpis(); renderTable(); renderCharts();
-    };
-    pills.innerHTML = "";
-    pills.appendChild(allBtn);
-
-    sorted.forEach((m) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.textContent = formatMonthLabel(m);
-      btn.className = "btn btn-sm" + (_selectedMonths.has(m) ? " btn-primary" : " btn-ghost");
-      btn.onclick = (e) => {
-        if (e.shiftKey) {
-          if (_selectedMonths.has(m)) _selectedMonths.delete(m);
-          else _selectedMonths.add(m);
-        } else {
-          if (_selectedMonths.has(m) && _selectedMonths.size === 1) {
-            _selectedMonths.clear();
-          } else {
-            _selectedMonths.clear();
-            _selectedMonths.add(m);
-          }
-        }
-        populateMonthSelects();
-        renderKpis(); renderTable(); renderCharts();
-      };
-      pills.appendChild(btn);
-    });
-
+    const prev = getSelectedMonths();
+    el.monthFilter.innerHTML = sorted.map((m) =>
+      `<option value="${m}" ${prev.includes(m) ? "selected" : ""}>${formatMonthLabel(m)}</option>`
+    ).join("");
     el.month.value = cur;
   }
 
@@ -747,7 +705,7 @@
 
   function getSelectedMonths() {
     if (!el.monthFilter) return [];
-    // pills-based
+    const selected = [...el.monthFilter.selectedOptions].map(o => o.value).filter(Boolean);
     return selected;
   }
 
@@ -804,54 +762,35 @@
       return;
     }
 
-    const planned  = rows.filter(t => t.status === "planned");
-    const realized = rows.filter(t => t.status === "realized");
-
-    const renderRow = (t) => {
-      const signed = t.kind === "income" ? t.amount : -t.amount;
-      const moneyClass = t.kind === "income" ? "money-in" : "money-out";
-      const rec = t.recurrence === "monthly"
-        ? '<span class="badge badge-planned">Mensal</span>' : "—";
-      return `<tr data-id="${t.id}">
+    el.tbody.innerHTML = rows
+      .map((t) => {
+        const signed = t.kind === "income" ? t.amount : -t.amount;
+        const moneyClass = t.kind === "income" ? "money-in" : "money-out";
+        const statusBadge =
+          t.status === "realized"
+            ? '<span class="badge badge-realized">Realizado</span>'
+            : '<span class="badge badge-planned">Previsto</span>';
+        const rec =
+          t.recurrence === "monthly"
+            ? '<span class="badge badge-planned" title="Repete a cada mês a partir da referência">Mensal</span>'
+            : "—";
+        return `<tr data-id="${t.id}">
         <td>${formatMonthLabel(t.month)}</td>
         <td>${escapeHtml(t.description)}</td>
         <td><span class="badge ${t.kind === "income" ? "badge-income" : "badge-expense"}">${t.kind === "income" ? "Receita" : "Despesa"}</span></td>
         <td>${escapeHtml(categoryLabel(t.categoryId))}</td>
         <td class="${moneyClass}">${formatBRL(signed)}</td>
+        <td>${statusBadge}</td>
         <td>${rec}</td>
         <td class="row-actions">
-          <button type="button" class="btn btn-sm btn-primary js-edit">Editar</button>
-          ${t.status === "planned"
-            ? `<button type="button" class="btn btn-sm btn-ghost js-realize">✓ Realizar</button>`
-            : `<button type="button" class="btn btn-sm btn-ghost js-unrealize">↩ Previsto</button>`}
+          <button type="button" class="btn btn-sm btn-primary js-edit" title="Alterar lançamento">Editar</button>
+          <button type="button" class="btn btn-sm btn-ghost js-realize" title="Marcar como pago/recebido" ${t.status === "realized" ? "disabled" : ""}>Realizar</button>
+          <button type="button" class="btn btn-sm btn-ghost js-unrealize" title="Voltar para previsto" ${t.status === "planned" ? "disabled" : ""}>Voltar a previsto</button>
           <button type="button" class="btn btn-sm btn-danger js-delete">Excluir</button>
         </td>
       </tr>`;
-    };
-
-    const totalPlanned  = planned.reduce((s, t) => s + (t.kind === "income" ? t.amount : -t.amount), 0);
-    const totalRealized = realized.reduce((s, t) => s + (t.kind === "income" ? t.amount : -t.amount), 0);
-
-    el.tbody.innerHTML = `
-      <tr class="group-header">
-        <td colspan="5" style="background:var(--planned-soft);color:var(--planned);font-weight:700;padding:.5rem .75rem">
-          Previstos (${planned.length})
-        </td>
-        <td colspan="3" style="background:var(--planned-soft);color:var(--planned);font-weight:700;text-align:right;padding:.5rem .75rem">
-          ${formatBRL(totalPlanned)}
-        </td>
-      </tr>
-      ${planned.length ? planned.map(renderRow).join("") : `<tr><td colspan="8" style="padding:.5rem .75rem;color:var(--text-muted)">Nenhum previsto</td></tr>`}
-      <tr class="group-header">
-        <td colspan="5" style="background:var(--accent-soft);color:var(--accent);font-weight:700;padding:.5rem .75rem">
-          Realizados (${realized.length})
-        </td>
-        <td colspan="3" style="background:var(--accent-soft);color:var(--accent);font-weight:700;text-align:right;padding:.5rem .75rem">
-          ${formatBRL(totalRealized)}
-        </td>
-      </tr>
-      ${realized.length ? realized.map(renderRow).join("") : `<tr><td colspan="8" style="padding:.5rem .75rem;color:var(--text-muted)">Nenhum realizado</td></tr>`}
-    `;
+      })
+      .join("");
 
     el.tbody.querySelectorAll("tr[data-id]").forEach((tr) => {
       const id = tr.getAttribute("data-id");
@@ -860,7 +799,7 @@
         if (confirm("Excluir este lançamento?")) {
           const t = state.transactions.find((x) => x.id === id);
           const mondayId = t?.mondayId;
-          state.transactions = state.transactions.filter((x) => x.id !== id);
+          state.transactions = state.transactions.filter((t) => t.id !== id);
           saveState();
           fullRender();
           if (mondayId) deleteFromMonday(mondayId);
@@ -877,7 +816,7 @@
       });
       tr.querySelector(".js-unrealize")?.addEventListener("click", () => {
         const t = state.transactions.find((x) => x.id === id);
-        if (t) {
+        if (t && t.status === "realized") {
           t.status = "planned";
           saveState();
           fullRender();
@@ -1041,15 +980,16 @@
     fullRender();
     // Sync ao Monday
     if (t.mondayId) {
+      const groupId = t.status === "realized" ? "group_mm24q7bz" : "topics";
       const catDropdownId = CAT_TO_DROPDOWN[t.categoryId] || 5;
+      const notesWithRecurrence = t.description + (t.recurrence === "monthly" ? " [mensal]" : "");
       const colValues = JSON.stringify({
-        [MONDAY_COLS.date]:       { date: t.month + "-01" },
-        [MONDAY_COLS.value]:      t.amount,
-        [MONDAY_COLS.notes]:      t.description,
-        [MONDAY_COLS.kind]:       { index: t.kind === "income" ? 1 : 2 },
-        [MONDAY_COLS.status]:     { index: t.status === "realized" ? 2 : 1 },
-        [MONDAY_COLS.category]:   { ids: [catDropdownId] },
-        [MONDAY_COLS.recurrence]: { index: t.recurrence === "monthly" ? 1 : 2 },
+        [MONDAY_COLS.date]:     { date: t.month + "-01" },
+        [MONDAY_COLS.value]:    t.amount,
+        [MONDAY_COLS.notes]:    notesWithRecurrence,
+        [MONDAY_COLS.kind]:     { index: t.kind === "income" ? 1 : 2 },
+        [MONDAY_COLS.status]:   { index: t.status === "realized" ? 2 : 1 },
+        [MONDAY_COLS.category]: { ids: [catDropdownId] },
       });
       fetch("https://api.monday.com/v2", {
         method: "POST",
@@ -1066,8 +1006,7 @@
 
   function renderCharts() {
     if (typeof Chart === "undefined") return;
-    const selected = getSelectedMonths();
-    const ym = selected.length === 1 ? selected[0] : null;
+    const ym = el.monthFilter.value;
     const palette = {
       text: "#8b9cb3",
       grid: "rgba(45,58,79,0.45)",
@@ -1229,6 +1168,7 @@
   }
 
   function fullRender() {
+    const saved = getSelectedMonths();
     populateMonthSelects();
     refreshCategoryOptions();
     renderKpis();
@@ -1238,8 +1178,8 @@
 
   function startApp() {
     cacheDom();
-    if (!el.form || !el.tbody) {
-      console.error("[Fluxo] HTML incompleto.");
+    if (!el.monthFilter || !el.form || !el.tbody) {
+      console.error("[Fluxo] HTML incompleto: faltam monthFilter, formulário ou tabela.");
       return;
     }
 
@@ -1266,13 +1206,18 @@
       el.desc.value = "";
       el.amount.value = "";
       saveState();
-      _selectedMonths.clear();
-      _selectedMonths.add(t.month);
+      el.monthFilter.value = t.month;
       fullRender();
       pushTransactionToMonday(t);
     });
 
     el.kind.addEventListener("change", refreshCategoryOptions);
+
+    el.monthFilter.addEventListener("change", () => {
+      renderKpis();
+      renderTable();
+      renderCharts();
+    });
 
     onClick("btnOpening", () => {
       el.modalOpening?.classList.add("open");
@@ -1376,6 +1321,9 @@
     });
 
     populateMonthSelects();
+    // Seleciona mês atual por padrão
+    const curOpt = [...el.monthFilter.options].find(o => o.value === monthFromDate());
+    if (curOpt) curOpt.selected = true;
     refreshCategoryOptions();
     fullRender();
 

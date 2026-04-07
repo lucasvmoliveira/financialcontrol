@@ -556,7 +556,7 @@ tr:hover td {
 }
 
 
-/* ── Split tables: Previstos | Realizados ──────────────────────────────────── */
+/* ── Split tables: Realizados | Previstos ──────────────────────────────────── */
 .split-tables-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -578,33 +578,73 @@ tr:hover td {
   box-shadow: var(--shadow);
 }
 
+/* Linha de acento superior — 3px sólida, sem cor de fundo */
+.split-table-col.col-realized {
+  border-top: 3px solid var(--income);
+}
+
+.split-table-col.col-planned {
+  border-top: 3px solid var(--border);
+}
+
 .split-table-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 700;
+  padding: 0.9rem 1.1rem 0.75rem;
+  background: transparent;
   border-bottom: 1px solid var(--border);
 }
 
-.split-header-planned {
-  background: var(--planned-soft);
-  color: var(--planned);
+.split-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
-.split-header-realized {
-  background: var(--accent-soft);
-  color: var(--accent);
+.split-header-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.split-header-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.col-realized .split-header-name {
+  color: var(--income);
+}
+
+.split-header-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
 }
 
 .split-count {
   font-size: 0.7rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.8;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
+
+.split-header-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.col-realized .split-header-dot { background: var(--income); }
+.col-planned  .split-header-dot { background: var(--border); }
 
 .split-table-col .table-wrap {
   margin-top: 0;
@@ -616,7 +656,7 @@ tr:hover td {
 
 .split-table-col th,
 .split-table-col td {
-  padding: 0.5rem 0.6rem;
+  padding: 0.5rem 0.75rem;
 }
 /* ─────────────────────────────────────────────────────────────────────────── */
 

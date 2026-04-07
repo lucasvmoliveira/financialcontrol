@@ -908,25 +908,16 @@
 
     splitContainer.innerHTML = `
       <div class="split-tables-row">
-        <div class="split-table-col">
-          <div class="split-table-header split-header-planned">
-            <span>🕐 Previstos</span>
-            <span class="split-count">${planned.length} lançamento${planned.length !== 1 ? "s" : ""}</span>
-          </div>
-          <div class="table-wrap">
-            <table id="tablePlanned">
-              ${colHeaders}
-              <tbody id="tbodyPlanned">
-                ${planned.length ? planned.map(buildRowHtml).join("") : emptyRow("Nenhum lançamento previsto.")}
-              </tbody>
-              ${planned.length ? footerRow(plannedIncomeTotal, plannedExpenseTotal) : ""}
-            </table>
-          </div>
-        </div>
-        <div class="split-table-col">
-          <div class="split-table-header split-header-realized">
-            <span>✅ Realizados</span>
-            <span class="split-count">${realized.length} lançamento${realized.length !== 1 ? "s" : ""}</span>
+        <div class="split-table-col col-realized">
+          <div class="split-table-header">
+            <div class="split-header-title">
+              <span class="split-header-label">Lançamentos</span>
+              <span class="split-header-name">Realizados</span>
+            </div>
+            <div class="split-header-meta">
+              <span class="split-header-dot"></span>
+              <span class="split-count">${realized.length} registro${realized.length !== 1 ? "s" : ""}</span>
+            </div>
           </div>
           <div class="table-wrap">
             <table id="tableRealized">
@@ -935,6 +926,27 @@
                 ${realized.length ? realized.map(buildRowHtml).join("") : emptyRow("Nenhum lançamento realizado.")}
               </tbody>
               ${realized.length ? footerRow(realizedIncomeTotal, realizedExpenseTotal) : ""}
+            </table>
+          </div>
+        </div>
+        <div class="split-table-col col-planned">
+          <div class="split-table-header">
+            <div class="split-header-title">
+              <span class="split-header-label">Lançamentos</span>
+              <span class="split-header-name">Previstos</span>
+            </div>
+            <div class="split-header-meta">
+              <span class="split-header-dot"></span>
+              <span class="split-count">${planned.length} registro${planned.length !== 1 ? "s" : ""}</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="tablePlanned">
+              ${colHeaders}
+              <tbody id="tbodyPlanned">
+                ${planned.length ? planned.map(buildRowHtml).join("") : emptyRow("Nenhum lançamento previsto.")}
+              </tbody>
+              ${planned.length ? footerRow(plannedIncomeTotal, plannedExpenseTotal) : ""}
             </table>
           </div>
         </div>

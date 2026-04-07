@@ -555,6 +555,71 @@ tr:hover td {
   border: 0;
 }
 
+
+/* ── Split tables: Previstos | Realizados ──────────────────────────────────── */
+.split-tables-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .split-tables-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.split-table-col {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.split-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+
+.split-header-planned {
+  background: var(--planned-soft);
+  color: var(--planned);
+}
+
+.split-header-realized {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.split-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+}
+
+.split-table-col .table-wrap {
+  margin-top: 0;
+}
+
+.split-table-col table {
+  font-size: 0.8rem;
+}
+
+.split-table-col th,
+.split-table-col td {
+  padding: 0.5rem 0.6rem;
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 footer.app-footer {
   max-width: 1200px;
   margin: 0 auto;

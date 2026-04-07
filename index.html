@@ -48,11 +48,10 @@
 
     <main>
       <div class="toolbar">
-        <div class="toolbar-group" style="flex:1">
-          <label>Período <span style="font-size:0.65rem;color:var(--text-muted)">(clique para selecionar, Shift para múltiplos)</span></label>
-          <div id="monthPills" style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.25rem"></div>
+        <div class="toolbar-group">
+          <label for="monthFilter">Período</label>
+          <select id="monthFilter" aria-label="Filtrar por mês" multiple size="3" style="min-width:160px"></select>
         </div>
-        <input type="hidden" id="monthFilter" />
         <div class="toolbar-group">
           <label for="openingBalance">Ajuste rápido do saldo inicial</label>
           <input
@@ -192,6 +191,7 @@
                 <th>Tipo</th>
                 <th>Categoria</th>
                 <th>Valor</th>
+                <th>Status</th>
                 <th>Recorrência</th>
                 <th>Ações</th>
               </tr>

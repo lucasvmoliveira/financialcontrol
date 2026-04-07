@@ -109,7 +109,18 @@ main {
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: flex-end;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+}
+
+/* Separador visual entre os grupos de KPI */
+.kpi-group + .kpi-group {
+  padding-top: 0.25rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--border);
 }
 
 .toolbar-group {
@@ -188,6 +199,27 @@ input:focus {
   font-size: 0.8rem;
 }
 
+.kpi-group {
+  margin-bottom: 1rem;
+}
+
+.kpi-group-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  padding-left: 0.1rem;
+}
+
+.kpi-group-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+/* Keep grid-kpis for backward compat */
 .grid-kpis {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -201,6 +233,11 @@ input:focus {
   border-radius: var(--radius);
   padding: 1rem 1.1rem;
   box-shadow: var(--shadow);
+}
+
+.kpi-highlight {
+  border-color: rgba(59, 130, 246, 0.35);
+  background: linear-gradient(135deg, var(--surface) 60%, rgba(59, 130, 246, 0.06));
 }
 
 .kpi-label {
@@ -451,17 +488,53 @@ tr:hover td {
 
 .insights-output {
   margin-top: 1rem;
-  padding: 1rem;
+  padding: 1rem 1.25rem;
   max-height: min(50vh, 420px);
   overflow: auto;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  font-size: 0.85rem;
-  line-height: 1.55;
-  white-space: pre-wrap;
+  font-size: 0.875rem;
+  line-height: 1.65;
   word-break: break-word;
   color: var(--text);
+}
+
+.insights-output h1,
+.insights-output h2,
+.insights-output h3 {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.insights-output h1 { font-size: 1.05rem; }
+
+.insights-output ul,
+.insights-output ol {
+  margin: 0.4rem 0 0.75rem 1.25rem;
+  padding: 0;
+}
+
+.insights-output li {
+  margin-bottom: 0.3rem;
+}
+
+.insights-output strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.insights-output p {
+  margin: 0 0 0.65rem;
+}
+
+.insights-output code {
+  background: var(--surface-hover);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.82em;
 }
 
 .empty-state {

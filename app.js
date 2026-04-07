@@ -415,6 +415,8 @@
             catId = MONDAY_DROPDOWN_MAP[dropId] || "outros";
           }
         } catch {}
+        const notesRaw = col(MONDAY_COLS.notes)?.text || "";
+        const recurrence = notesRaw.includes("[mensal]") ? "monthly" : "none";
         return {
           id: "monday_" + item.id,
           mondayId: item.id,
@@ -424,7 +426,7 @@
           categoryId: catId,
           month,
           status: statusTxt === "Realizado" ? "realized" : "planned",
-          recurrence: "none",
+          recurrence,
           createdAt: new Date().toISOString(),
         };
       });
@@ -470,15 +472,15 @@
     const token = getMondayToken();
     if (!token) return;
     const groupId = t.status === "realized" ? "group_mm24q7bz" : "topics";
-    const catLabel = state.categories.find(c => c.id === t.categoryId)?.label || "";
-    const dropdownId = CAT_TO_DROPDOWN[t.categoryId] || 5;
+    const catDropdownId = CAT_TO_DROPDOWN[t.categoryId] || 5;
+    const notesWithRecurrence = t.description + (t.recurrence === "monthly" ? " [mensal]" : "");
     const colValues = JSON.stringify({
       [MONDAY_COLS.date]:     { date: t.month + "-01" },
       [MONDAY_COLS.value]:    t.amount,
-      [MONDAY_COLS.notes]:    t.description,
+      [MONDAY_COLS.notes]:    notesWithRecurrence,
       [MONDAY_COLS.kind]:     { index: t.kind === "income" ? 1 : 2 },
       [MONDAY_COLS.status]:   { index: t.status === "realized" ? 2 : 1 },
-      [MONDAY_COLS.category]: { ids: [dropdownId] },
+      [MONDAY_COLS.category]: { ids: [catDropdownId] },
     });
     const r = await fetch("https://api.monday.com/v2", {
       method: "POST",
@@ -704,30 +706,57 @@
     const ym = el.monthFilter.value;
     if (el.openingInput) el.openingInput.value = String(state.openingBalance);
 
+    let incomeR = 0, expenseR = 0, incomeP = 0, expenseP = 0;
+
     if (!ym) {
-      el.kpiIncomeR.textContent = "—";
-      el.kpiExpenseR.textContent = "—";
-      el.kpiIncomeP.textContent = "—";
-      el.kpiExpenseP.textContent = "—";
-      el.kpiNetMonth.textContent = "Selecione um mês";
-      el.kpiNetMonth.className = "kpi-value";
-      el.kpiLiquidity.textContent = "—";
-      el.kpiLiquidity.className = "kpi-value";
-      return;
+      // Período todo: soma todos os meses com dados
+      const months = sortedUniqueMonthsFromData();
+      months.forEach((m) => {
+        const f = flowsForMonth(m);
+        incomeR += f.incomeR;
+        expenseR += f.expenseR;
+        incomeP += f.incomeP;
+        expenseP += f.expenseP;
+      });
+    } else {
+      const f = flowsForMonth(ym);
+      incomeR = f.incomeR; expenseR = f.expenseR;
+      incomeP = f.incomeP; expenseP = f.expenseP;
     }
 
-    const f = flowsForMonth(ym);
-    el.kpiIncomeR.textContent = formatBRL(f.incomeR);
-    el.kpiExpenseR.textContent = formatBRL(f.expenseR);
-    el.kpiIncomeP.textContent = formatBRL(f.incomeP);
-    el.kpiExpenseP.textContent = formatBRL(f.expenseP);
+    const netTotal = incomeR + incomeP - expenseR - expenseP;
+    const netRealized = incomeR - expenseR;
 
-    el.kpiNetMonth.textContent = formatBRL(f.netTotal);
-    el.kpiNetMonth.className = "kpi-value " + (f.netTotal >= 0 ? "income" : "expense");
+    el.kpiIncomeR.textContent = formatBRL(incomeR);
+    el.kpiExpenseR.textContent = formatBRL(expenseR);
+    el.kpiIncomeP.textContent = formatBRL(incomeP);
+    el.kpiExpenseP.textContent = formatBRL(expenseP);
+    el.kpiNetMonth.textContent = formatBRL(netTotal);
+    el.kpiNetMonth.className = "kpi-value " + (netTotal >= 0 ? "income" : "expense");
 
-    const endBal = balanceBeforeMonth(addMonths(ym, 1));
-    el.kpiLiquidity.textContent = formatBRL(endBal);
-    el.kpiLiquidity.className = "kpi-value " + (endBal >= 0 ? "income" : "expense");
+    // Diferença realizado
+    const kpiDiff = document.getElementById("kpiRealized");
+    if (kpiDiff) {
+      kpiDiff.textContent = formatBRL(netRealized);
+      kpiDiff.className = "kpi-value " + (netRealized >= 0 ? "income" : "expense");
+    }
+
+    if (ym) {
+      const endBal = balanceBeforeMonth(addMonths(ym, 1));
+      el.kpiLiquidity.textContent = formatBRL(endBal);
+      el.kpiLiquidity.className = "kpi-value " + (endBal >= 0 ? "income" : "expense");
+    } else {
+      const months = sortedUniqueMonthsFromData();
+      if (months.length) {
+        const lastMonth = months[months.length - 1];
+        const endBal = balanceBeforeMonth(addMonths(lastMonth, 1));
+        el.kpiLiquidity.textContent = formatBRL(endBal);
+        el.kpiLiquidity.className = "kpi-value " + (endBal >= 0 ? "income" : "expense");
+      } else {
+        el.kpiLiquidity.textContent = formatBRL(state.openingBalance);
+        el.kpiLiquidity.className = "kpi-value";
+      }
+    }
   }
 
   function renderTable() {
@@ -1290,6 +1319,10 @@
     // Auto-sync do Monday ao abrir se tiver token
     if (getMondayToken()) {
       syncFromMonday();
+      // Polling a cada 30s para manter em tempo real
+      setInterval(() => {
+        if (getMondayToken()) syncFromMonday();
+      }, 30000);
     }
   }
 

@@ -210,17 +210,26 @@
     return { labels, balances };
   }
 
-  function categoryExpenseTotals(ymFilter) {
+  function categoryExpenseTotals(fromYm, toYm) {
     const totals = {};
     const add = (catId, amt) => {
       const key = categoryLabel(catId);
       totals[key] = (totals[key] || 0) + amt;
     };
-    if (ymFilter) {
-      state.transactions.forEach((t) => {
-        if (t.kind !== "expense") return;
-        if (!appliesToMonth(t, ymFilter)) return;
-        add(t.categoryId, t.amount);
+    if (fromYm || toYm) {
+      // Use the explicit range
+      const all = sortedUniqueMonthsFromData();
+      const months = all.filter((m) => {
+        if (fromYm && compareMonth(m, fromYm) < 0) return false;
+        if (toYm && compareMonth(m, toYm) > 0) return false;
+        return true;
+      });
+      months.forEach((ym) => {
+        state.transactions.forEach((t) => {
+          if (t.kind !== "expense") return;
+          if (!appliesToMonth(t, ym)) return;
+          add(t.categoryId, t.amount);
+        });
       });
     } else {
       const todayYm = monthFromDate();
@@ -591,7 +600,11 @@
       }
       const text = data.content?.[0]?.text || "";
       if (text && out) {
-        out.textContent = text;
+        if (typeof marked !== "undefined") {
+          out.innerHTML = marked.parse(text);
+        } else {
+          out.textContent = text;
+        }
         out.hidden = false;
         if (statusEl) statusEl.textContent = "Pronto.";
       }
@@ -625,6 +638,8 @@
   function cacheDom() {
     el = {
       monthFilter: document.getElementById("monthFilter"),
+      dateFrom: document.getElementById("dateFrom"),
+      dateTo: document.getElementById("dateTo"),
       kpiIncomeR: document.getElementById("kpiIncomeR"),
       kpiExpenseR: document.getElementById("kpiExpenseR"),
       kpiIncomeP: document.getElementById("kpiIncomeP"),
@@ -703,10 +718,21 @@
     el.category.innerHTML = list.map((c) => `<option value="${c.id}">${c.label}</option>`).join("");
   }
 
+  function getDateRange() {
+    const from = el.dateFrom?.value || "";
+    const to = el.dateTo?.value || "";
+    return { from, to };
+  }
+
   function getSelectedMonths() {
-    if (!el.monthFilter) return [];
-    const selected = [...el.monthFilter.selectedOptions].map(o => o.value).filter(Boolean);
-    return selected;
+    const { from, to } = getDateRange();
+    const all = sortedUniqueMonthsFromData();
+    if (!from && !to) return all;
+    return all.filter((m) => {
+      if (from && compareMonth(m, from) < 0) return false;
+      if (to && compareMonth(m, to) > 0) return false;
+      return true;
+    });
   }
 
   function renderKpis() {
@@ -1006,16 +1032,15 @@
 
   function renderCharts() {
     if (typeof Chart === "undefined") return;
-    const ym = el.monthFilter.value;
+    const { from, to } = getDateRange();
     const palette = {
       text: "#8b9cb3",
       grid: "rgba(45,58,79,0.45)",
     };
 
-    let flowMonths;
-    if (ym) {
-      flowMonths = [ym];
-    } else {
+    // Flow chart: use the selected range or default window
+    let flowMonths = getSelectedMonths();
+    if (!flowMonths.length) {
       flowMonths = chartMonthRange(5, 1);
       if (!flowMonths.length) flowMonths = [monthFromDate()];
     }
@@ -1120,7 +1145,7 @@
       },
     });
 
-    const catMap = categoryExpenseTotals(ym || null);
+    const catMap = categoryExpenseTotals(from || null, to || null);
     const catLabels = Object.keys(catMap);
     const catData = catLabels.map((k) => catMap[k]);
 
@@ -1213,10 +1238,17 @@
 
     el.kind.addEventListener("change", refreshCategoryOptions);
 
-    el.monthFilter.addEventListener("change", () => {
+    const onDateChange = () => {
       renderKpis();
       renderTable();
-      renderCharts();
+      if (typeof Chart !== "undefined") renderCharts();
+    };
+    el.dateFrom?.addEventListener("change", onDateChange);
+    el.dateTo?.addEventListener("change", onDateChange);
+    onClick("btnClearDates", () => {
+      if (el.dateFrom) el.dateFrom.value = "";
+      if (el.dateTo) el.dateTo.value = "";
+      onDateChange();
     });
 
     onClick("btnOpening", () => {
@@ -1321,9 +1353,10 @@
     });
 
     populateMonthSelects();
-    // Seleciona mês atual por padrão
-    const curOpt = [...el.monthFilter.options].find(o => o.value === monthFromDate());
-    if (curOpt) curOpt.selected = true;
+    // Pré-seleciona o mês atual nos filtros de data
+    const cur = monthFromDate();
+    if (el.dateFrom) el.dateFrom.value = cur;
+    if (el.dateTo) el.dateTo.value = cur;
     refreshCategoryOptions();
     fullRender();
 

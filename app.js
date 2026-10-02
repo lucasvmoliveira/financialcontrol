@@ -553,7 +553,7 @@
     const tokEl  = document.getElementById("mondayTokenInput");
     const st     = document.getElementById("insightsStatus");
     const out    = document.getElementById("insightsOutput");
-    if (keyEl) keyEl.value = localStorage.getItem("fluxo_anthropic_key") || "";
+    if (keyEl) keyEl.value = localStorage.getItem("fluxo_gemini_key") || "";
     if (tokEl) tokEl.value = localStorage.getItem("fluxo_monday_token") || "";
     if (st) st.textContent = "";
     if (out) { out.textContent = ""; out.hidden = true; }
@@ -568,29 +568,31 @@
     const btn     = document.getElementById("btnGenerateInsights");
 
     if (!apiKey) {
-      if (statusEl) statusEl.textContent = "Informe sua chave da API Anthropic (sk-ant-…).";
+      if (statusEl) statusEl.textContent = "Informe sua chave da API do Gemini (AIza…).";
       return;
     }
-    localStorage.setItem("fluxo_anthropic_key", apiKey);
+    localStorage.setItem("fluxo_gemini_key", apiKey);
     if (statusEl) statusEl.textContent = "Gerando insights… aguarde.";
     if (out) { out.hidden = true; out.textContent = ""; }
     if (btn) btn.disabled = true;
 
     try {
       const summary = buildFinancialSummaryForAi();
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
+          "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 2000,
-          system: "Você é um planejador financeiro pessoal objetivo. Responda em português do Brasil. Use markdown (títulos, listas) quando ajudar a leitura. Não invente números. Inclua: (1) visão geral do caixa, (2) riscos ou alertas, (3) até 7 sugestões práticas para o próximo mês.",
-          messages: [{ role: "user", content: summary }],
+          systemInstruction: {
+            parts: [{ text: "Você é um planejador financeiro pessoal objetivo. Responda em português do Brasil. Use markdown (títulos, listas) quando ajudar a leitura. Não invente números. Inclua: (1) visão geral do caixa, (2) riscos ou alertas, (3) até 7 sugestões práticas para o próximo mês." }],
+          },
+          contents: [{ role: "user", parts: [{ text: summary }] }],
+          generationConfig: {
+            maxOutputTokens: 4000,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         }),
       });
       const data = await r.json().catch(() => ({}));
@@ -598,7 +600,7 @@
         if (statusEl) statusEl.textContent = data.error?.message || "Erro HTTP " + r.status;
         return;
       }
-      const text = data.content?.[0]?.text || "";
+      const text = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
       if (text && out) {
         if (typeof marked !== "undefined") {
           out.innerHTML = marked.parse(text);
@@ -1399,7 +1401,7 @@
     onClick("btnExportAllMonday", () => exportAllToMonday());
     onClick("btnSaveInsightsConfig", () => {
       const k = document.getElementById("insightsApiKey")?.value.trim() || "";
-      localStorage.setItem("fluxo_anthropic_key", k);
+      localStorage.setItem("fluxo_gemini_key", k);
       const st = document.getElementById("insightsStatus");
       if (st) st.textContent = "Chave salva.";
     });

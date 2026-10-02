@@ -323,7 +323,7 @@
   }
 
   // ─── Monday.com integration ───────────────────────────────────────────────
-  const MONDAY_BOARD_ID = "18407293573";
+  const MONDAY_BOARD_ID = "18433746474";
   const MONDAY_COLS = {
     date:       "date_mm24p4t0",
     value:      "numeric_mm245wmn",

@@ -1448,6 +1448,8 @@
           };
           saveState();
           fullRender();
+          // Envia ao Monday já na importação (evita o polling de 30s apagar os itens novos)
+          if (getMondayToken()) exportAllToMonday();
         } catch {
           alert("Arquivo inválido.");
         }

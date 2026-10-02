@@ -578,24 +578,33 @@
 
     try {
       const summary = buildFinancialSummaryForAi();
-      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
+      const body = JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: "Você é um planejador financeiro pessoal objetivo. Responda em português do Brasil. Use markdown (títulos, listas) quando ajudar a leitura. Não invente números. Inclua: (1) visão geral do caixa, (2) riscos ou alertas, (3) até 7 sugestões práticas para o próximo mês." }],
         },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: "Você é um planejador financeiro pessoal objetivo. Responda em português do Brasil. Use markdown (títulos, listas) quando ajudar a leitura. Não invente números. Inclua: (1) visão geral do caixa, (2) riscos ou alertas, (3) até 7 sugestões práticas para o próximo mês." }],
-          },
-          contents: [{ role: "user", parts: [{ text: summary }] }],
-          generationConfig: {
-            maxOutputTokens: 4000,
-            thinkingConfig: { thinkingLevel: "low" },
-          },
-        }),
+        contents: [{ role: "user", parts: [{ text: summary }] }],
+        generationConfig: {
+          maxOutputTokens: 4000,
+          thinkingConfig: { thinkingLevel: "low" },
+        },
       });
-      const data = await r.json().catch(() => ({}));
+      // Tenta o modelo principal e, se estiver sobrecarregado/indisponível, o reserva.
+      const models = ["gemini-3.8-flash", "gemini-3.7-flash"];
+      let r, data = {};
+      outer: for (const model of models) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (statusEl) statusEl.textContent = "Gerando insights… aguarde." + (model !== models[0] || attempt ? " (tentando novamente)" : "");
+          r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+            body,
+          });
+          data = await r.json().catch(() => ({}));
+          if (r.ok) break outer;
+          if (![429, 500, 503, 404].includes(r.status)) break outer; // erro não temporário (ex.: chave inválida)
+          await new Promise((res) => setTimeout(res, 2500));
+        }
+      }
       if (!r.ok) {
         if (statusEl) statusEl.textContent = data.error?.message || "Erro HTTP " + r.status;
         return;
